@@ -43,5 +43,6 @@ struct Adc {
     void enable_autotrigger();
     void disable_autotrigger();
     void start(BitResolution res, uint32_t sample_rate);
+    uint32_t stop();
 };
 }  // namespace adc

@@ -19,6 +19,7 @@ static struct AdcFrame {
     Channel* channels;
     uint8_t* buf;
     size_t sz;
+    uint32_t collected;
 } FRAME;
 
 static bool activate(Channel& ch) {
@@ -61,6 +62,7 @@ ISR(ADC_vect) {
         FRAME.buf[FRAME.index++] = ADCL;
         FRAME.index &= (FRAME.sz - 1);
     }
+    FRAME.collected++;
 }
 
 int8_t Channel::mux_mask() {
@@ -105,7 +107,6 @@ void Adc::enable_autotrigger() { ADCSRA |= (1 << ADATE); }
 void Adc::disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
 
 void Adc::start(BitResolution res, uint32_t sample_rate) {
-    uint8_t mask = 1 << ADSC;
     FRAME.res = res;
     FRAME.eflags = 0;
     FRAME.index = 0;
@@ -114,6 +115,16 @@ void Adc::start(BitResolution res, uint32_t sample_rate) {
     FRAME.channel_count = channel_count;
     FRAME.channels = channels;
     FRAME.ch_index = 0;
-    ADCSRA |= mask;
+    FRAME.collected = 0;
+    // TODO: Actual timer math here
+    // Fastest speed for the moment
+    ADCSRA &= ~0b111;
+    // Start conversion
+    ADCSRA |= (1 << ADSC);
+}
+uint32_t Adc::stop() {
+    disable_interrupts();
+    disable_autotrigger();
+    return FRAME.collected;
 }
 }  // namespace adc

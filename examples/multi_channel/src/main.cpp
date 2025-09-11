@@ -8,10 +8,12 @@
 #define MIC_EN 22
 #define SD_EN 4
 #define POWER_5V 5
+#define RESOLUTION BitResolution::Ten
 
 // Recording
 #define SAMPLE_RATE 24000ul  // 24 kHz
 #define DURATION_SEC 3ul
+#define BUF_SZ 1024
 
 #define NUM_SAMPLES (SAMPLE_RATE * DURATION_SEC)
 
@@ -70,18 +72,37 @@ void loop() {
         {.pin = A4, .differenced = -1, .gain = adc::Gain::One},
         {.pin = A5, .differenced = -1, .gain = adc::Gain::One},
     };
-#define BUF_SZ 36
     uint8_t buf[BUF_SZ] = {0};
     adc::Adc adc(BUF_SZ, buf, channel_count, channels);
     adc.enable_interrupts();
     adc.enable_autotrigger();
-    adc.start(BitResolution::Ten, 24000);
-    while (true) {
-    }
-    adc.disable_autotrigger();
-    adc.disable_interrupts();
+    uint8_t prescaler_mask = 0b111;
+    uint32_t deadline = millis() + DURATION_SEC * 1000;
 
-    WavHeader hdr(BitResolution::Ten, recording.fileSize(), SAMPLE_RATE);
+    adc.start(RESOLUTION, SAMPLE_RATE);
+    while (millis() < deadline) {
+    }
+    uint32_t collected = adc.stop();
+
+    Serial.print("Channels: ");
+    Serial.println(channel_count);
+
+    Serial.print("Bit Resolution: ");
+    Serial.println(RESOLUTION == BitResolution::Eight ? 8 : 10);
+
+    Serial.print("Prescaler value: 0x");
+    Serial.println(ADCSRA & prescaler_mask, HEX);
+
+    Serial.print("Collected ");
+    Serial.print(collected);
+    Serial.print(" samples in ");
+    Serial.print(DURATION_SEC);
+    Serial.print(" seconds (");
+    double kSPS = (double)collected / (DURATION_SEC * 1000.0);
+    Serial.print(kSPS);
+    Serial.println("kHz sample rate)");
+
+    WavHeader hdr(RESOLUTION, recording.fileSize(), SAMPLE_RATE);
     recording.seekSet(0);
     if (recording.write(reinterpret_cast<uint8_t*>(&hdr), sizeof(hdr)) !=
         sizeof(hdr)) {
