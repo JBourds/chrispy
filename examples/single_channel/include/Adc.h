@@ -26,9 +26,9 @@ struct Channel {
 
 struct Adc {
     const size_t sz;
-    const uint8_t* buf;
+    uint8_t* buf;
     const uint8_t channel_count;
-    const Channel* const channels;
+    Channel* channels;
 
     Adc(size_t _sz, uint8_t* _buf, uint8_t _channel_count, Channel* _channels)
         : sz(_sz),
@@ -40,6 +40,8 @@ struct Adc {
     void sleep();
     void enable_interrupts();
     void disable_interrupts();
-    void sample();
+    void enable_autotrigger();
+    void disable_autotrigger();
+    void start(BitResolution res, uint32_t sample_rate);
 };
 }  // namespace adc

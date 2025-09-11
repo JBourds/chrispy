@@ -7,19 +7,60 @@
 
 namespace adc {
 
-struct AdcFrame {
-    uint8_t* buf;
-    SdFile* file;
+#define EFULL 0b1
+#define ECHANNEL 0b10
+
+static struct AdcFrame {
+    volatile uint8_t eflags;
     BitResolution res;
+    volatile size_t index;
+    uint8_t channel_count;
+    volatile uint8_t ch_index;
+    Channel* channels;
+    uint8_t* buf;
     size_t sz;
-    size_t index;
 } FRAME;
 
+static bool activate(Channel& ch) {
+    int8_t mask = ch.mux_mask();
+    if (mask < 0) {
+        Serial.println(mask);
+        return false;
+    }
+#define MUX_MASK 0b11111
+    ADMUX &= ~MUX_MASK;
+    ADMUX |= mask;
+#undef MUX_MASK
+    // TODO: Set MUX5 in ADCSRB
+    return true;
+}
+
 ISR(ADC_vect) {
-    Serial.print("Conversion complete: ");
-    uint16_t val = (ADCH << 8) | ADCL;
-    Serial.println(val, HEX);
-    FRAME.index++;
+    // Alternate channels we sample from
+    FRAME.ch_index++;
+    FRAME.ch_index &= (FRAME.channel_count - 1);
+    if (!activate(FRAME.channels[FRAME.ch_index])) {
+        Serial.println("Channel error!");
+        FRAME.eflags |= ECHANNEL;
+        return;
+    }
+
+    if (FRAME.res == BitResolution::Eight) {
+        if (FRAME.index + 1 > FRAME.sz) {
+            FRAME.eflags |= EFULL;
+            return;
+        }
+        FRAME.buf[FRAME.index++] = ADCL;
+        FRAME.index &= (FRAME.sz - 1);
+    } else {
+        if (FRAME.index + 2 > FRAME.sz) {
+            FRAME.eflags |= EFULL;
+            return;
+        }
+        FRAME.buf[FRAME.index++] = ADCH;
+        FRAME.buf[FRAME.index++] = ADCL;
+        FRAME.index &= (FRAME.sz - 1);
+    }
 }
 
 int8_t Channel::mux_mask() {
@@ -60,10 +101,19 @@ void Adc::sleep() {
 void Adc::enable_interrupts() { ADCSRA |= (1 << ADIE); }
 void Adc::disable_interrupts() { ADCSRA &= ~(1 << ADIE); }
 
-void Adc::sample() {
+void Adc::enable_autotrigger() { ADCSRA |= (1 << ADATE); }
+void Adc::disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
+
+void Adc::start(BitResolution res, uint32_t sample_rate) {
     uint8_t mask = 1 << ADSC;
+    FRAME.res = res;
+    FRAME.eflags = 0;
+    FRAME.index = 0;
+    FRAME.buf = buf;
+    FRAME.sz = sz;
+    FRAME.channel_count = channel_count;
+    FRAME.channels = channels;
+    FRAME.ch_index = 0;
     ADCSRA |= mask;
-    while (ADCSRA & mask) {
-    }
 }
 }  // namespace adc

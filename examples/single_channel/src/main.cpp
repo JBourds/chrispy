@@ -64,13 +64,21 @@ void loop() {
     Serial.println(filename);
 
     // TODO: Record
-    uint8_t channel_count = 1;
-    adc::Channel channels[] = {{.pin = A0}};
-#define BUF_SZ 32
+    uint8_t channel_count = 3;
+    adc::Channel channels[] = {
+        {.pin = A0, .differenced = -1, .gain = adc::Gain::One},
+        {.pin = A4, .differenced = -1, .gain = adc::Gain::One},
+        {.pin = A5, .differenced = -1, .gain = adc::Gain::One},
+    };
+#define BUF_SZ 36
     uint8_t buf[BUF_SZ] = {0};
     adc::Adc adc(BUF_SZ, buf, channel_count, channels);
     adc.enable_interrupts();
-    adc.sample();
+    adc.enable_autotrigger();
+    adc.start(BitResolution::Ten, 24000);
+    while (true) {
+    }
+    adc.disable_autotrigger();
     adc.disable_interrupts();
 
     WavHeader hdr(BitResolution::Ten, recording.fileSize(), SAMPLE_RATE);
