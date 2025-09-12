@@ -166,6 +166,57 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     return 0;
 }
 
+void Adc::swap_buffer() {
+    if (FRAME.eflags & BUF1FULL) {
+        noInterrupts();
+        FRAME.eflags ^= BUF1FULL;
+        interrupts();
+    } else if (FRAME.eflags & BUF2FULL) {
+        noInterrupts();
+        FRAME.eflags ^= BUF2FULL;
+        interrupts();
+    }
+}
+
+int16_t Adc::next_sample(size_t& ch_index) {
+    // Try to get one of the buffers
+    // It's okay if an interrupt fires during this since the ISR will never
+    // unset this flag.
+    if (SAMPLER.buf == nullptr) {
+        if (FRAME.eflags & BUF1FULL) {
+            SAMPLER.buf = FRAME.buf1;
+        } else if (FRAME.eflags & BUF2FULL) {
+            SAMPLER.buf = FRAME.buf2;
+        }
+    }
+    if (SAMPLER.buf == nullptr) {
+        return -1;
+    }
+    int16_t val = 0;
+    // May have a high byte we sample first
+    if (res != BitResolution::Eight) {
+        val |= (SAMPLER.buf[SAMPLER.index++] << CHAR_BIT);
+    }
+    // Low byte
+    val |= SAMPLER.buf[SAMPLER.index];
+    // Update internal channel counter
+    SAMPLER.ch_index =
+        SAMPLER.ch_index == FRAME.max_ch_index ? 0 : SAMPLER.ch_index + 1;
+    ch_index = SAMPLER.ch_index;
+    // Exhausted a buffer, reset sampler state and signal that
+    // the frame can reuse the buffer
+    if (SAMPLER.index == FRAME.max_buf_index) {
+        SAMPLER.buf = nullptr;
+        SAMPLER.index = 0;
+        noInterrupts();
+        FRAME.eflags ^= SAMPLER.buf == FRAME.buf1 ? BUF1FULL : BUF2FULL;
+        interrupts();
+    } else {
+        SAMPLER.index++;
+    }
+    return val;
+}
+
 uint32_t Adc::stop() {
     disable_interrupts();
     disable_autotrigger();
