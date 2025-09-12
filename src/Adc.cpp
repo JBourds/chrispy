@@ -37,6 +37,8 @@ static struct AdcFrame {
     // Guaranteed to
     uint8_t* buf1;
     uint8_t* buf2;
+    // Buffer actively being written to. Only gets swapped when capacity is hit.
+    uint8_t* current;
     // Total counter of the number of samples collected
     uint32_t collected;
 } FRAME;
@@ -57,7 +59,7 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
     size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
     size_t samples_per_buf = sz / (2 * bytes_per_sample);
     FRAME.max_buf_index = samples_per_buf * bytes_per_sample - 1;
-    FRAME.buf1 = buf;
+    FRAME.current = FRAME.buf1 = buf;
     FRAME.buf2 = buf + FRAME.max_buf_index + 1;
     return 0;
 }
@@ -79,29 +81,33 @@ ISR(ADC_vect) {
     if ((FRAME.eflags & EFULL) == EFULL) {
         return;
     }
-    bool use_buf_1 = !(FRAME.eflags & BUF1FULL);
-    uint8_t* buf = use_buf_1 ? FRAME.buf1 : FRAME.buf2;
+
     if (!activate(FRAME.channels[FRAME.ch_index])) {
         FRAME.eflags |= ECHANNEL;
         return;
     }
-    // Only sample high byte if we aren't in 8-bit resolution
+    // Only sample high byte if we are in > 8-bit resolution
     if (FRAME.res != BitResolution::Eight) {
-        buf[FRAME.sample_index++] = ADCH;
+        FRAME.current[FRAME.sample_index++] = ADCH;
     }
-    buf[FRAME.sample_index] = ADCL;
+    FRAME.current[FRAME.sample_index] = ADCL;
 
-    // Setup for next sampling
+    // Hit the end of this buffer.
+    // Because we didn't early return at the beginning, we know the other buffer
+    // is available. Mark in `eflags` this buffer is ready to write to then swap
+    // the buffers.
     if (FRAME.sample_index == FRAME.max_buf_index) {
         FRAME.sample_index = 0;
+        bool use_buf_1 = !(FRAME.eflags & BUF1FULL);
         FRAME.eflags |= use_buf_1 ? BUF1FULL : BUF2FULL;
+        FRAME.current = use_buf_1 ? FRAME.buf1 : FRAME.buf2;
     } else {
         ++FRAME.sample_index;
     }
+    // Wrapping channel index
     FRAME.ch_index =
         FRAME.ch_index == FRAME.max_ch_index ? 0 : FRAME.ch_index + 1;
 
-    // Accounting information
     FRAME.collected++;
 }
 
