@@ -9,6 +9,7 @@
 #define SAMPLE_RATE 24000ul  // 24 kHz
 #define DURATION_SEC 3ul
 #define BUF_SZ 1024
+uint8_t buf[BUF_SZ] = {0};
 
 #define NUM_SAMPLES (SAMPLE_RATE * DURATION_SEC)
 
@@ -23,6 +24,8 @@ void setup() {
     pinMode(POWER_5V, OUTPUT);
     digitalWrite(MIC_EN, LOW);
     digitalWrite(POWER_5V, HIGH);
+
+    Serial.println("Initialized");
 }
 
 void loop() {
@@ -32,15 +35,31 @@ void loop() {
         {.pin = A4, .power = 26, .differenced = -1, .gain = Gain::One},
         {.pin = A5, .power = 27, .differenced = -1, .gain = Gain::One},
     };
-    uint8_t buf[BUF_SZ] = {0};
     Adc adc(nchannels, channels, buf, BUF_SZ);
+
     adc.enable_interrupts();
     adc.enable_autotrigger();
     uint8_t prescaler_mask = 0b111;
     uint32_t deadline = millis() + DURATION_SEC * 1000;
 
-    adc.start(RESOLUTION, SAMPLE_RATE);
+    int16_t rc = adc.start(RESOLUTION, SAMPLE_RATE);
+    if (rc) {
+        Serial.print("RC starting ADC sampling: ");
+        Serial.println(rc);
+    }
+    size_t ch_index = 0;
+    size_t counter = 0;
     while (millis() < deadline) {
+        adc.swap_buffer();
+        // int16_t val = adc.next_sample(ch_index);
+        // if (val < 0) {
+        //     Serial.print("Received ");
+        //     Serial.print(counter);
+        //     Serial.println(" samples. Now waiting for next.");
+        //     counter = 0;
+        // } else {
+        //     counter++;
+        // }
     }
     uint32_t collected = adc.stop();
 
