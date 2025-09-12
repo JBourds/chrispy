@@ -49,8 +49,10 @@ void loop() {
     }
     size_t ch_index = 0;
     size_t counter = 0;
+    uint8_t *buf = nullptr;
+    size_t sz = 0;
     while (millis() < deadline) {
-        adc.swap_buffer();
+        adc.swap_buffer(&buf, sz);
         // int16_t val = adc.next_sample(ch_index);
         // if (val < 0) {
         //     Serial.print("Received ");
