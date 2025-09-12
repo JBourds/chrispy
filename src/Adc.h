@@ -14,8 +14,8 @@ enum struct Gain : uint8_t {
 struct Channel {
     // Channel being read, or `a` in `a` - `b`
     uint8_t pin;
-    // Power pin
-    uint8_t power;
+    // Power pin. If negative, indicates no power is needed.
+    int8_t power;
     // CURRENTLY UNSUPPORTED
     // < 0 if there is no pin to be differenced again
     int8_t differenced;

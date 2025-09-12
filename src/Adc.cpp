@@ -158,6 +158,13 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
         return rc;
     }
     this->res = res;
+    for (size_t i = 0; i < nchannels; ++i) {
+        if (channels[i].power >= 0) {
+            pinMode(channels[i].power, OUTPUT);
+            digitalWrite(channels[i].power, HIGH);
+        }
+        pinMode(channels[i].pin, INPUT);
+    }
     // TODO: Actual timer math here
     // Fastest speed for the moment
     ADCSRA &= ~0b111;
@@ -223,5 +230,10 @@ uint32_t Adc::stop() {
     uint32_t collected = FRAME.collected;
     memset(&FRAME, 0, sizeof(FRAME));
     memset(&SAMPLER, 0, sizeof(SAMPLER));
+    for (size_t i = 0; i < nchannels; ++i) {
+        if (channels[i].power >= 0) {
+            digitalWrite(channels[i].power, LOW);
+        }
+    }
     return collected;
 }
