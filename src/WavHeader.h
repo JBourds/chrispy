@@ -30,7 +30,7 @@ struct WavHeader {
     //== SampleRate * NumChannels * BitsPerSample/8
     uint32_t byte_rate = 0;
     //== NumChannels * BitsPerSample/8
-    const uint16_t block_align = 2;
+    uint16_t block_align = 2;
     // 10-bit adc requires two bytes per sample
     uint16_t bits_per_sample;
     const char sub_chunk_2_id[4] = {'d', 'a', 't', 'a'};
@@ -48,6 +48,7 @@ struct WavHeader {
         this->sample_rate = sample_rate;
         this->byte_rate =
             sample_rate * num_channels * bits_per_sample / U8_BITS;
-        this->sub_chunk_2_size = chunk_size - sizeof(WavHeader);
+        this->block_align = num_channels * this->bits_per_sample / U8_BITS;
+        this->sub_chunk_2_size = file_size - sizeof(WavHeader);
     }
 };
