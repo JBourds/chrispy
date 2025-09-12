@@ -33,7 +33,6 @@ struct Adc {
 
     Adc(uint8_t _nchannels, Channel* _channels, uint8_t* _buf, size_t _sz)
         : nchannels(_nchannels), channels(_channels), buf(_buf), sz(_sz) {}
-    ~Adc();
     void on();
     void off();
     void sleep();

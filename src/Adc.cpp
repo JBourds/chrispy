@@ -128,12 +128,6 @@ int8_t Channel::mux_mask() {
     }
 }
 
-Adc::~Adc() {
-    disable_interrupts();
-    disable_autotrigger();
-    off();
-}
-
 void Adc::on() {
     PRR0 &= ~(1 << PRADC);
     ADCSRA |= 1 << ADEN;
