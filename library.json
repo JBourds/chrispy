@@ -1,9 +1,9 @@
 {
     "name": "chrispy",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "description": "Library for multi-channel concurrent audio recording.",
     "dependencies": [
-        { "name": "SdFat", "version":  "greiman/SdFat@^2.2.3" }
+        { "name": "SdFat", "version":  "greiman/SdFat@^2.3.1" }
     ],
     "build": {
         "libLDFMode": "deep+"
