@@ -55,6 +55,23 @@ struct Adc {
      * value otherwise.
      */
     int16_t next_sample(size_t& ch_index);
-    void swap_buffer();
+    /**
+     * Attempt to swap the buffer in the argument for a new
+     * one. If `buf` = nullptr, try to give a full buffer.
+     * Otherwise, check if it is one of the two buffers in the
+     * recording frame. If it is, mark that it is no longer full.
+     *
+     * Intent: Call this in a loop starting with a nullptr.
+     *
+     * @param buf: Pointer to buffer being swapped. If it is a null-pointer,
+     * will try to swap it with a currently full buffer without marking it as
+     * usable by the ISR. If it is one of the double buffers, will free the
+     * buffer for use again and try to exchange it for the other buffer if
+     * possible.
+     * @param sz: Out-parameter for the number of bytes in the buffer.
+     *
+     * @returns (int8_t): 0 if success. Nonzero otherwise.
+     */
+    int8_t swap_buffer(uint8_t** buf, size_t& sz);
     uint32_t stop();
 };

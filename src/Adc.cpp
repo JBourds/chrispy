@@ -168,21 +168,39 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     // TODO: Actual timer math here
     // Fastest speed for the moment
     ADCSRA &= ~0b111;
+    ADCSRA |= 0b100;
     // Start conversion
     ADCSRA |= (1 << ADSC);
     return 0;
 }
 
-void Adc::swap_buffer() {
-    if (FRAME.eflags & BUF1FULL) {
-        noInterrupts();
-        FRAME.eflags ^= BUF1FULL;
-        interrupts();
-    } else if (FRAME.eflags & BUF2FULL) {
-        noInterrupts();
-        FRAME.eflags ^= BUF2FULL;
-        interrupts();
+int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
+    if (buf == nullptr) {
+        return -1;
     }
+    if (*buf == nullptr) {
+        if (FRAME.eflags & BUF1FULL) {
+            *buf = FRAME.buf1;
+        } else if (FRAME.eflags & BUF2FULL) {
+            *buf = FRAME.buf2;
+        }
+    } else {
+        if (*buf == FRAME.buf1) {
+            noInterrupts();
+            FRAME.eflags ^= BUF1FULL;
+            interrupts();
+            *buf = FRAME.eflags & BUF2FULL ? FRAME.buf2 : nullptr;
+        } else if (*buf == FRAME.buf2) {
+            noInterrupts();
+            FRAME.eflags ^= BUF2FULL;
+            interrupts();
+            *buf = FRAME.eflags & BUF1FULL ? FRAME.buf1 : nullptr;
+        } else {
+            return -2;
+        }
+    }
+    sz = FRAME.max_buf_index + 1;
+    return 0;
 }
 
 int16_t Adc::next_sample(size_t& ch_index) {
