@@ -73,7 +73,12 @@ static inline bool activate(Channel& ch) {
     ADMUX &= ~MUX_MASK;
     ADMUX |= mask;
 #undef MUX_MASK
-    // TODO: Set MUX5 in ADCSRB
+    // If the mask comes from a higher channel (>7) set MUX5
+    if (mask >> 3) {
+        ADCSRB |= (1 << MUX5);
+    } else {
+        ADCSRB &= ~(1 << MUX5);
+    }
     return true;
 }
 
@@ -169,6 +174,9 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     // Fastest speed for the moment
     ADCSRA &= ~0b111;
     ADCSRA |= 0b100;
+    // Set reference voltage to analog 5V
+    ADMUX &= ~((1 << REFS0) | (1 << REFS1));
+    ADMUX |= (1 << REFS0);
     // Start conversion
     ADCSRA |= (1 << ADSC);
     return 0;
