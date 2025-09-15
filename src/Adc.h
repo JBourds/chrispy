@@ -5,21 +5,11 @@
 
 #include "WavHeader.h"
 
-enum struct Gain : uint8_t {
-    One,
-    Ten,
-    TwoHundred,
-};
-
 struct Channel {
     // Channel being read, or `a` in `a` - `b`
     uint8_t pin;
     // Power pin. If negative, indicates no power is needed.
     int8_t power;
-    // CURRENTLY UNSUPPORTED
-    // < 0 if there is no pin to be differenced again
-    int8_t differenced;
-    Gain gain;
 
     inline int8_t mux_mask();
 };
@@ -40,6 +30,7 @@ struct Adc {
     void disable_interrupts();
     void enable_autotrigger();
     void disable_autotrigger();
+    void set_frequency(uint32_t sample_rate);
     int8_t start(BitResolution res, uint32_t sample_rate);
 
     /**

@@ -3,12 +3,15 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "Adc.h"
+
 #define MIC_PIN A0
 #define MIC_EN 22
 #define POWER_5V 5
 #define CS_PIN 12
 #define SD_EN 4
-#define RESOLUTION BitResolution::Eight
+#define RESOLUTION BitResolution::Ten
+#define SAMPLE_RATE 24000ul
 
 // Recording
 #define DURATION_SEC 3ul
@@ -21,54 +24,12 @@ SdFat SD;
 SdFile REC;
 #define NUM_SAMPLES (SAMPLE_RATE * DURATION_SEC)
 
-// Prescaler masks
-#define DIV_128 0b111
-#define DIV_64 0b110
-#define DIV_32 0b101
-#define DIV_16 0b100
-#define DIV_8 0b011
-#define DIV_4 0b010
-#define DIV_2 0b001
-#define DIV_2_2 0b000
-
 ISR(ADC_vect) {
     if (index < BUF_SZ) {
         buf[index++] = ADCL;
         buf[index++] = ADCH;
     }
 }
-
-namespace adc {
-void set_frequency(uint32_t sample_rate) {
-    ADCSRA &= ~(DIV_128);
-    ADCSRA |= DIV_64;
-}
-void enable_interrupts() { ADCSRA |= (1 << ADIE); }
-void disable_interrupts() { ADCSRA &= ~(1 << ADIE); }
-
-void enable_autotrigger() { ADCSRA |= (1 << ADATE); }
-void disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
-
-void on() {
-    PRR0 &= ~(1 << PRADC);
-    ADCSRA |= (1 << ADEN);
-}
-
-void off() { ADCSRA &= ~(1 << ADEN); }
-
-void sleep() {
-    off();
-    PRR0 |= (1 << PRADC);
-}
-void start() {
-    on();
-    enable_interrupts();
-    enable_autotrigger();
-    set_frequency(24000);
-    ADMUX = 1 << REFS0;
-    ADCSRA |= (1 << ADSC);
-}
-}  // namespace adc
 
 void setup() {
     Serial.begin(9600);
@@ -104,29 +65,39 @@ void setup() {
     //     Serial.println(analogRead(MIC_PIN));
     // }
     // Start
-    adc::start();
-    deadline = millis() + DURATION_SEC * 1000;
 }
 
 void loop() {
-    if (millis() > deadline) {
-        REC.close();
-        Serial.println("Done");
+    uint8_t nchannels = 1;
+    Channel channels[] = {{.pin = A0, .power = 22}};
+    Adc adc(nchannels, channels, buf, BUF_SZ);
+    int16_t rc = adc.start(RESOLUTION, SAMPLE_RATE);
+    if (rc != 0) {
+        Serial.println("Error starting ADC");
         while (true) {
         }
     }
-    if (index == BUF_SZ) {
-        size_t nbytes = REC.write(buf, index);
-        for (size_t i = 0; i < index; i += 2) {
-            uint8_t low = buf[i];
-            uint8_t hi = buf[i + 1];
-            Serial.println(low | (hi << 8), HEX);
-        }
-        if (nbytes != index) {
-            Serial.println("Error writing to file!");
+    uint32_t deadline = millis() + DURATION_SEC * 1000;
+    while (true) {
+        if (millis() > deadline) {
+            REC.close();
+            Serial.println("Done");
             while (true) {
             }
         }
-        index = 0;
+        if (index == BUF_SZ) {
+            size_t nbytes = REC.write(buf, index);
+            for (size_t i = 0; i < index; i += 2) {
+                uint8_t low = buf[i];
+                uint8_t hi = buf[i + 1];
+                Serial.println(low | (hi << 8), HEX);
+            }
+            if (nbytes != index) {
+                Serial.println("Error writing to file!");
+                while (true) {
+                }
+            }
+            index = 0;
+        }
     }
 }
