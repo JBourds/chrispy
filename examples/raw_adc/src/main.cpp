@@ -10,7 +10,7 @@
 #define POWER_5V 5
 #define CS_PIN 12
 #define SD_EN 4
-#define RESOLUTION BitResolution::Eight
+#define RESOLUTION BitResolution::Ten
 #define SAMPLE_RATE 24000ul
 
 // Recording
@@ -77,10 +77,16 @@ void loop() {
                 continue;
             }
             size_t nbytes = REC.write(tmp_buf, sz);
-            for (size_t i = 0; i < sz; i += 2) {
-                uint8_t low = tmp_buf[i];
-                uint8_t hi = tmp_buf[i + 1];
-                Serial.println(low | (hi << 8), HEX);
+            if (RESOLUTION == BitResolution::Eight) {
+                for (size_t i = 0; i < sz; ++i) {
+                    Serial.println(buf[i], HEX);
+                }
+            } else {
+                for (size_t i = 0; i < sz; i += 2) {
+                    uint8_t low = tmp_buf[i];
+                    uint8_t hi = tmp_buf[i + 1];
+                    Serial.println(low | (hi << 8), HEX);
+                }
             }
             if (nbytes != sz) {
                 Serial.println("Error writing to file!");

@@ -98,11 +98,19 @@
 // }
 
 static struct AdcFrame {
+    // Flags used to communicate state of sampling
     volatile uint8_t eflags;
+    // Bit resolution being used for sampling
+    BitResolution res;
+    // Double buffers being swapped between
     uint8_t* buf1;
     uint8_t* buf2;
-    volatile size_t index;
-    size_t sz;
+    // Number of bytes in each buffer (guaranteed to be an increment of the
+    // number of bytes needed per sample).
+    size_t buf_sz;
+    // Current sample index in the active buffer
+    volatile size_t sample_index;
+    // Accounting information on # samples collected
     volatile uint32_t collected;
 } FRAME;
 
@@ -112,9 +120,10 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
     // Slice up the buffer into a double buffer
     size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
     size_t samples_per_buf = sz / (2 * bytes_per_sample);
-    FRAME.sz = samples_per_buf * bytes_per_sample;
+    FRAME.res = res;
+    FRAME.buf_sz = samples_per_buf * bytes_per_sample;
     FRAME.buf1 = buf;
-    FRAME.buf2 = buf + FRAME.sz;
+    FRAME.buf2 = buf + FRAME.buf_sz;
     return 0;
 }
 
@@ -124,11 +133,13 @@ ISR(ADC_vect) {
     }
     bool use_buf_1 = !(FRAME.eflags & BUF1FULL);
     uint8_t* buf = use_buf_1 ? FRAME.buf1 : FRAME.buf2;
-    buf[FRAME.index++] = ADCL;
-    buf[FRAME.index++] = ADCH;
-    if (FRAME.index == FRAME.sz) {
+    if (FRAME.res != BitResolution::Eight) {
+        buf[FRAME.sample_index++] = ADCL;
+    }
+    buf[FRAME.sample_index++] = ADCH;
+    if (FRAME.sample_index == FRAME.buf_sz) {
         FRAME.eflags |= (use_buf_1 ? BUF1FULL : BUF2FULL);
-        FRAME.index = 0;
+        FRAME.sample_index = 0;
     }
     ++FRAME.collected;
 }
@@ -168,6 +179,10 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     enable_autotrigger();
     set_frequency(sample_rate);
     ADMUX = 1 << REFS0;
+    // Left adjust result so we can just read from ADCH in ISR
+    if (res == BitResolution::Eight) {
+        ADMUX |= (1 << ADLAR);
+    }
     ADCSRA |= (1 << ADSC);
     return 0;
 }
@@ -199,7 +214,7 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
             return -3;
         }
     }
-    sz = FRAME.sz;
+    sz = FRAME.buf_sz;
     return 0;
 }
 
