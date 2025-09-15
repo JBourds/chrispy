@@ -38,9 +38,9 @@ static struct AdcFrame {
     uint8_t* buf1;
     uint8_t* buf2;
     // Buffer actively being written to. Only gets swapped when capacity is hit.
-    uint8_t* current;
+    volatile uint8_t* current;
     // Total counter of the number of samples collected
-    uint32_t collected;
+    volatile uint32_t collected;
 } FRAME;
 
 static struct Sampler {
