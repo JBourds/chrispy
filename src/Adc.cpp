@@ -141,7 +141,7 @@ int8_t Channel::mux_mask() {
 
 void Adc::on() {
     PRR0 &= ~(1 << PRADC);
-    ADCSRA |= 1 << ADEN;
+    ADCSRA |= (1 << ADEN);
 }
 
 void Adc::off() { ADCSRA &= ~(1 << ADEN); }
@@ -168,7 +168,6 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
             pinMode(channels[i].power, OUTPUT);
             digitalWrite(channels[i].power, HIGH);
         }
-        pinMode(channels[i].pin, INPUT);
     }
     // TODO: Actual timer math here
     // Fastest speed for the moment
