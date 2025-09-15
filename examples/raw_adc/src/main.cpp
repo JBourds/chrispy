@@ -69,21 +69,17 @@ void loop() {
         }
     }
     uint32_t deadline = millis() + DURATION_SEC * 1000;
-    uint8_t* buf = nullptr;
+    uint8_t* tmp_buf = nullptr;
     size_t sz = 0;
     while (true) {
-        if (millis() > deadline) {
-            REC.close();
-            Serial.println("Done");
-            while (true) {
+        if (adc.swap_buffer(&tmp_buf, sz) == 0) {
+            if (tmp_buf == nullptr) {
+                continue;
             }
-        }
-
-        if (adc.swap_buffer(&buf, sz) == 0) {
-            size_t nbytes = REC.write(buf, sz);
+            size_t nbytes = REC.write(tmp_buf, sz);
             for (size_t i = 0; i < sz; i += 2) {
-                uint8_t low = buf[i];
-                uint8_t hi = buf[i + 1];
+                uint8_t low = tmp_buf[i];
+                uint8_t hi = tmp_buf[i + 1];
                 Serial.println(low | (hi << 8), HEX);
             }
             if (nbytes != sz) {

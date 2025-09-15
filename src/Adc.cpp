@@ -54,32 +54,11 @@
 //     uint8_t* buf1;
 //     uint8_t* buf2;
 //     // Buffer actively being written to. Only gets swapped when capacity is
-//     hit. volatile uint8_t* current;
+//     hit.volatile uint8_t* current;
 //     // Total counter of the number of samples collected
 //     volatile uint32_t collected;
 // } FRAME;
 //
-// static struct Sampler {
-//     uint8_t* buf = nullptr;
-//     size_t index = 0;
-//     size_t ch_index = 0;
-// } SAMPLER;
-//
-// static int8_t init_frame(BitResolution res, uint8_t nchannels,
-//                          Channel* channels, uint8_t* buf, size_t sz) {
-//     memset(&FRAME, 0, sizeof(FRAME));
-//     FRAME.res = res;
-//     FRAME.max_ch_index = nchannels - 1;
-//     FRAME.channels = channels;
-//     // Slice up the buffer into a double buffer
-//     size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
-//     size_t samples_per_buf = sz / (2 * bytes_per_sample);
-//     FRAME.max_buf_index = samples_per_buf * bytes_per_sample - 1;
-//     FRAME.current = FRAME.buf1 = buf;
-//     FRAME.buf2 = buf + FRAME.max_buf_index + 1;
-//     return 0;
-// }
-
 // ISR(ADC_vect) {
 //     if ((FRAME.eflags & EFULL) == EFULL) {
 //         return;
@@ -94,15 +73,16 @@
 //     // Hit the end of this buffer.
 //     // Because we didn't early return at the beginning, we know the other
 //     buffer
-//     // is available. Mark in `eflags` this buffer is ready to write to then
-//     swap
-//     // the buffers.
-//     if (FRAME.sample_index == FRAME.max_buf_index) {
+//         // is available. Mark in `eflags` this buffer is ready to write to
+//         then swap
+//         // the buffers.
+//         if (FRAME.sample_index == FRAME.max_buf_index) {
 //         FRAME.sample_index = 0;
 //         bool use_buf_1 = !(FRAME.eflags & BUF1FULL);
 //         FRAME.eflags |= use_buf_1 ? BUF1FULL : BUF2FULL;
 //         FRAME.current = use_buf_1 ? FRAME.buf1 : FRAME.buf2;
-//     } else {
+//     }
+//     else {
 //         ++FRAME.sample_index;
 //     }
 //
@@ -118,27 +98,39 @@
 // }
 
 static struct AdcFrame {
-    uint8_t* buf;
+    volatile uint8_t eflags;
+    uint8_t* buf1;
+    uint8_t* buf2;
     volatile size_t index;
     size_t sz;
+    volatile uint32_t collected;
 } FRAME;
 
 static int8_t init_frame(BitResolution res, uint8_t nchannels,
                          Channel* channels, uint8_t* buf, size_t sz) {
     memset(&FRAME, 0, sizeof(FRAME));
-    FRAME.sz = sz;
-    FRAME.buf = buf;
-    Serial.print("Frame size: ");
-    Serial.println(sz);
-    Serial.flush();
+    // Slice up the buffer into a double buffer
+    size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
+    size_t samples_per_buf = sz / (2 * bytes_per_sample);
+    FRAME.sz = samples_per_buf * bytes_per_sample;
+    FRAME.buf1 = buf;
+    FRAME.buf2 = buf + FRAME.sz;
     return 0;
 }
 
 ISR(ADC_vect) {
-    if (FRAME.index < FRAME.sz) {
-        FRAME.buf[FRAME.index++] = ADCL;
-        FRAME.buf[FRAME.index++] = ADCH;
+    if ((FRAME.eflags & EFULL) == EFULL) {
+        return;
     }
+    bool use_buf_1 = !(FRAME.eflags & BUF1FULL);
+    uint8_t* buf = use_buf_1 ? FRAME.buf1 : FRAME.buf2;
+    buf[FRAME.index++] = ADCL;
+    buf[FRAME.index++] = ADCH;
+    if (FRAME.index == FRAME.sz) {
+        FRAME.eflags |= (use_buf_1 ? BUF1FULL : BUF2FULL);
+        FRAME.index = 0;
+    }
+    ++FRAME.collected;
 }
 
 void Adc::on() {
@@ -181,60 +173,46 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
 }
 
 int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
-    if (*buf == FRAME.buf) {
-        *buf = nullptr;
-        FRAME.index = 0;
+    if (buf == nullptr) {
         return -1;
-    } else if (FRAME.index == FRAME.sz) {
-        *buf = FRAME.buf;
-        sz = FRAME.sz;
-        return 0;
-    } else {
-        return -2;
     }
+    if (*buf == nullptr) {
+        if (FRAME.eflags & BUF1FULL) {
+            *buf = FRAME.buf1;
+        } else if (FRAME.eflags & BUF2FULL) {
+            *buf = FRAME.buf2;
+        } else {
+            return -2;
+        }
+    } else {
+        if (*buf == FRAME.buf1) {
+            noInterrupts();
+            FRAME.eflags ^= BUF1FULL;
+            interrupts();
+            *buf = FRAME.eflags & BUF2FULL ? FRAME.buf2 : nullptr;
+        } else if (*buf == FRAME.buf2) {
+            noInterrupts();
+            FRAME.eflags ^= BUF2FULL;
+            interrupts();
+            *buf = FRAME.eflags & BUF1FULL ? FRAME.buf1 : nullptr;
+        } else {
+            return -3;
+        }
+    }
+    sz = FRAME.sz;
+    return 0;
 }
 
-// int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
-//     if (buf == nullptr) {
-//         return -1;
-//     }
-//     if (*buf == nullptr) {
-//         if (FRAME.eflags & BUF1FULL) {
-//             *buf = FRAME.buf1;
-//         } else if (FRAME.eflags & BUF2FULL) {
-//             *buf = FRAME.buf2;
-//         }
-//     } else {
-//         if (*buf == FRAME.buf1) {
-//             noInterrupts();
-//             FRAME.eflags ^= BUF1FULL;
-//             interrupts();
-//             *buf = FRAME.eflags & BUF2FULL ? FRAME.buf2 : nullptr;
-//         } else if (*buf == FRAME.buf2) {
-//             noInterrupts();
-//             FRAME.eflags ^= BUF2FULL;
-//             interrupts();
-//             *buf = FRAME.eflags & BUF1FULL ? FRAME.buf1 : nullptr;
-//         } else {
-//             return -2;
-//         }
-//     }
-//     sz = FRAME.max_buf_index + 1;
-//     return 0;
-// }
-//
 uint32_t Adc::stop() {
     off();
     disable_interrupts();
     disable_autotrigger();
-    return 0;
-    // uint32_t collected = FRAME.collected;
-    // memset(&FRAME, 0, sizeof(FRAME));
-    // memset(&SAMPLER, 0, sizeof(SAMPLER));
-    // for (size_t i = 0; i < nchannels; ++i) {
-    //     if (channels[i].power >= 0) {
-    //         digitalWrite(channels[i].power, LOW);
-    //     }
-    // }
-    // return collected;
+    uint32_t collected = FRAME.collected;
+    memset(&FRAME, 0, sizeof(FRAME));
+    for (size_t i = 0; i < nchannels; ++i) {
+        if (channels[i].power >= 0) {
+            digitalWrite(channels[i].power, LOW);
+        }
+    }
+    return collected;
 }
