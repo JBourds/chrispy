@@ -16,6 +16,22 @@
 // Error encountered activating the channel
 #define ECHANNEL 0b10000
 
+// Bit masks
+#define MUX_MASK 0b11111
+#define LOW_CHANNEL_MASK 0b111
+#define HIGH_CHANNEL_MASK ~LOW_CHANNEL_MASK
+#define PRESCALER_MASK 0b111
+
+// Prescaler masks
+#define DIV_128 0b111
+#define DIV_64 0b110
+#define DIV_32 0b101
+#define DIV_16 0b100
+#define DIV_8 0b011
+#define DIV_4 0b010
+#define DIV_2 0b001
+#define DIV_2_2 0b000
+
 static struct AdcFrame {
     // Flags field containing potential errors or information about active buf
     volatile uint8_t eflags;
@@ -69,12 +85,10 @@ static inline bool activate(Channel& ch) {
     if (mask < 0) {
         return false;
     }
-#define MUX_MASK 0b11111
     ADMUX &= ~MUX_MASK;
     ADMUX |= mask;
-#undef MUX_MASK
     // If the mask comes from a higher channel (>7) set MUX5
-    if (mask >> 3) {
+    if (mask & HIGH_CHANNEL_MASK) {
         ADCSRB |= (1 << MUX5);
     } else {
         ADCSRB &= ~(1 << MUX5);
@@ -171,8 +185,9 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     }
     // TODO: Actual timer math here
     // Fastest speed for the moment
-    ADCSRA &= ~0b111;
-    ADCSRA |= 0b100;
+    ADCSRA &= ~PRESCALER_MASK;
+    ADCSRA |= DIV_64;
+
     // Set reference voltage to analog 5V
     ADMUX &= ~((1 << REFS0) | (1 << REFS1));
     ADMUX |= (1 << REFS0);
