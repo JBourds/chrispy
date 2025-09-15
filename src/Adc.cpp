@@ -93,9 +93,9 @@ ISR(ADC_vect) {
     }
     // Only sample high byte if we are in > 8-bit resolution
     if (FRAME.res != BitResolution::Eight) {
-        FRAME.current[FRAME.sample_index++] = ADCH;
+        FRAME.current[FRAME.sample_index++] = ADCL;
     }
-    FRAME.current[FRAME.sample_index] = ADCL;
+    FRAME.current[FRAME.sample_index] = ADCH;
 
     // Hit the end of this buffer.
     // Because we didn't early return at the beginning, we know the other buffer
