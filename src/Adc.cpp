@@ -172,6 +172,9 @@ void Adc::enable_autotrigger() { ADCSRA |= (1 << ADATE); }
 void Adc::disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
 
 int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
+    if (ADCSRA & (1 << ADEN)) {
+        off();
+    }
     int8_t rc = init_frame(res, nchannels, channels, buf, sz);
     if (rc) {
         return rc;
@@ -182,7 +185,13 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
             pinMode(channels[i].power, OUTPUT);
             digitalWrite(channels[i].power, HIGH);
         }
+        pinMode(channels[i].pin, INPUT);
     }
+    on();
+
+    // Disable digital input buffers
+    DIDR0 |= (1 << ADC0D) | (1 << ADC1D) | (1 << ADC2D) | (1 << ADC3D);
+
     // TODO: Actual timer math here
     // Fastest speed for the moment
     ADCSRA &= ~PRESCALER_MASK;
@@ -191,6 +200,8 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     // Set reference voltage to analog 5V
     ADMUX &= ~((1 << REFS0) | (1 << REFS1));
     ADMUX |= (1 << REFS0);
+    enable_autotrigger();
+    enable_interrupts();
     // Start conversion
     ADCSRA |= (1 << ADSC);
     return 0;
@@ -265,6 +276,7 @@ int16_t Adc::next_sample(size_t& ch_index) {
 }
 
 uint32_t Adc::stop() {
+    off();
     disable_interrupts();
     disable_autotrigger();
     uint32_t collected = FRAME.collected;
