@@ -34,12 +34,11 @@
 
 // static struct AdcFrame {
 //     // Flags field containing potential errors or information about active
-//     buf volatile uint8_t eflags;
+//     volatile uint8_t eflags;
 //     // Bit resolution to determine whether samples must be one or two bytes
 //     BitResolution res;
 //     // Maximum allowed channel index. Stored as `nchannels` - 1 to get rid of
-//     a
-//     // subtraction in the ISR
+//     // a subtraction in the ISR
 //     uint8_t max_ch_index;
 //     // Current channel being recorded on. Alternates each sample
 //     // if `nchannels` > 1.
@@ -80,7 +79,7 @@
 //     FRAME.buf2 = buf + FRAME.max_buf_index + 1;
 //     return 0;
 // }
-//
+
 // ISR(ADC_vect) {
 //     if ((FRAME.eflags & EFULL) == EFULL) {
 //         return;
@@ -107,7 +106,7 @@
 //         ++FRAME.sample_index;
 //     }
 //
-//     // // Wrapping channel index
+//     // Wrapping channel index
 //     // FRAME.ch_index =
 //     //     FRAME.ch_index == FRAME.max_ch_index ? 0 : FRAME.ch_index + 1;
 //     // if (!activate(FRAME.channels[FRAME.ch_index])) {
@@ -117,6 +116,30 @@
 //     //
 //     FRAME.collected++;
 // }
+
+static struct AdcFrame {
+    uint8_t* buf;
+    volatile size_t index;
+    size_t sz;
+} FRAME;
+
+static int8_t init_frame(BitResolution res, uint8_t nchannels,
+                         Channel* channels, uint8_t* buf, size_t sz) {
+    memset(&FRAME, 0, sizeof(FRAME));
+    FRAME.sz = sz;
+    FRAME.buf = buf;
+    Serial.print("Frame size: ");
+    Serial.println(sz);
+    Serial.flush();
+    return 0;
+}
+
+ISR(ADC_vect) {
+    if (FRAME.index < FRAME.sz) {
+        FRAME.buf[FRAME.index++] = ADCL;
+        FRAME.buf[FRAME.index++] = ADCH;
+    }
+}
 
 void Adc::on() {
     PRR0 &= ~(1 << PRADC);
@@ -142,10 +165,10 @@ void Adc::set_frequency(uint32_t sample_rate) {
 }
 
 int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
-    // int8_t rc = init_frame(res, nchannels, channels, buf, sz);
-    // if (rc) {
-    //     return rc;
-    // }
+    int8_t rc = init_frame(res, nchannels, channels, buf, sz);
+    if (rc) {
+        return rc;
+    }
     this->res = res;
 
     on();
@@ -155,6 +178,20 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     ADMUX = 1 << REFS0;
     ADCSRA |= (1 << ADSC);
     return 0;
+}
+
+int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
+    if (*buf == FRAME.buf) {
+        *buf = nullptr;
+        FRAME.index = 0;
+        return -1;
+    } else if (FRAME.index == FRAME.sz) {
+        *buf = FRAME.buf;
+        sz = FRAME.sz;
+        return 0;
+    } else {
+        return -2;
+    }
 }
 
 // int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
@@ -186,7 +223,6 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
 //     return 0;
 // }
 //
-
 uint32_t Adc::stop() {
     off();
     disable_interrupts();

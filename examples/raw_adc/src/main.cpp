@@ -10,26 +10,18 @@
 #define POWER_5V 5
 #define CS_PIN 12
 #define SD_EN 4
-#define RESOLUTION BitResolution::Ten
+#define RESOLUTION BitResolution::Eight
 #define SAMPLE_RATE 24000ul
 
 // Recording
 #define DURATION_SEC 3ul
-#define BUF_SZ 512
+#define BUF_SZ 1024
 uint8_t buf[BUF_SZ] = {0};
-volatile static size_t index = 0;
 uint32_t deadline = 0;
 
 SdFat SD;
 SdFile REC;
 #define NUM_SAMPLES (SAMPLE_RATE * DURATION_SEC)
-
-ISR(ADC_vect) {
-    if (index < BUF_SZ) {
-        buf[index++] = ADCL;
-        buf[index++] = ADCH;
-    }
-}
 
 void setup() {
     Serial.begin(9600);
@@ -62,9 +54,8 @@ void setup() {
     Serial.println("Initialized");
 
     // while (true) {
-    //     Serial.println(analogRead(MIC_PIN));
+    //     Serial.println(analogRead(MIC_PIN), HEX);
     // }
-    // Start
 }
 
 void loop() {
@@ -78,6 +69,8 @@ void loop() {
         }
     }
     uint32_t deadline = millis() + DURATION_SEC * 1000;
+    uint8_t* buf = nullptr;
+    size_t sz = 0;
     while (true) {
         if (millis() > deadline) {
             REC.close();
@@ -85,19 +78,23 @@ void loop() {
             while (true) {
             }
         }
-        if (index == BUF_SZ) {
-            size_t nbytes = REC.write(buf, index);
-            for (size_t i = 0; i < index; i += 2) {
+
+        if (adc.swap_buffer(&buf, sz) == 0) {
+            size_t nbytes = REC.write(buf, sz);
+            for (size_t i = 0; i < sz; i += 2) {
                 uint8_t low = buf[i];
                 uint8_t hi = buf[i + 1];
                 Serial.println(low | (hi << 8), HEX);
             }
-            if (nbytes != index) {
+            if (nbytes != sz) {
                 Serial.println("Error writing to file!");
+                Serial.print("Expected ");
+                Serial.println(sz);
+                Serial.print("Got ");
+                Serial.println(nbytes);
                 while (true) {
                 }
             }
-            index = 0;
         }
     }
 }
