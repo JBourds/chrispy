@@ -38,7 +38,7 @@ struct WavHeader {
     uint32_t sub_chunk_2_size = 0;
     // Audio data gets written after this header
 
-    WavHeader(BitResolution res, uint32_t file_size, uint32_t sample_rate) {
+    void fill(BitResolution res, uint32_t file_size, uint32_t sample_rate) {
         if (res == BitResolution::Eight) {
             this->bits_per_sample = U8_BITS;
         } else {
