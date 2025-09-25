@@ -16,6 +16,8 @@
 // Error encountered activating the channel
 #define ECHANNEL 0b10000
 
+#define CYCLES_PER_SAMPLE 13
+
 // Bit masks
 #define MUX_MASK 0b11111
 #define LOW_CHANNEL_MASK 0b111
@@ -31,6 +33,28 @@
 #define DIV_4 0b010
 #define DIV_2 0b001
 #define DIV_2_2 0b000
+static const size_t NPRESCALERS = 7;
+static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
+static uint8_t prescaler_mask(pre_t val) {
+    switch (val) {
+        case 2:
+            return DIV_2;
+        case 4:
+            return DIV_4;
+        case 8:
+            return DIV_8;
+        case 16:
+            return DIV_16;
+        case 32:
+            return DIV_32;
+        case 64:
+            return DIV_64;
+        case 128:
+            return DIV_128;
+        default:
+            return 0;
+    }
+}
 
 static struct AdcFrame {
     // Flags used to communicate state of sampling
@@ -144,9 +168,21 @@ void Adc::disable_interrupts() { ADCSRA &= ~(1 << ADIE); }
 void Adc::enable_autotrigger() { ADCSRA |= (1 << ADATE); }
 void Adc::disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
 
-void Adc::set_frequency(uint32_t sample_rate) {
+TimerRc Adc::set_frequency(uint32_t sample_rate) {
+    TimerConfig host_cfg(F_CPU, sample_rate, Skew::High);
+    TimerRc rc = activate_t1(host_cfg);
+    if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
+        return rc;
+    }
+
+    TimerConfig adc_cfg(F_CPU, CYCLES_PER_SAMPLE * sample_rate, Skew::High);
+    rc = adc_cfg.compute(NPRESCALERS, PRESCALERS, 1, 0.0);
+    if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
+        return rc;
+    }
+    uint8_t prescaler = prescaler_mask(adc_cfg.prescaler);
     ADCSRA &= ~PRESCALER_MASK;
-    ADCSRA |= DIV_64;
+    ADCSRA |= prescaler;
 }
 
 int8_t Adc::start(BitResolution res, uint32_t sample_rate) {

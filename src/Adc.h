@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include "Timer.h"
 #include "WavHeader.h"
 
 struct Channel {
@@ -30,7 +31,7 @@ struct Adc {
     void disable_interrupts();
     void enable_autotrigger();
     void disable_autotrigger();
-    void set_frequency(uint32_t sample_rate);
+    TimerRc set_frequency(uint32_t sample_rate);
     int8_t start(BitResolution res, uint32_t sample_rate);
 
     /**
