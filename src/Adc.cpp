@@ -185,6 +185,13 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
         return rc;
     }
 
+    // Set overflow match on A and B so count resets (uses A) and triggers
+    // interrupt when it does so (match on B)
+    cli();
+    OCR1A = host_cfg.compare;
+    OCR1B = host_cfg.compare;
+    sei();
+
     uint32_t adc_rate = CYCLES_PER_SAMPLE * sample_rate;
     if (adc_rate > ADC_MAX_FREQ) {
         return TimerRc::ImpossibleClock;
@@ -255,6 +262,7 @@ uint32_t Adc::stop() {
     off();
     disable_interrupts();
     disable_autotrigger();
+    deactivate_t1();
     uint32_t collected = FRAME.collected;
     memset(&FRAME, 0, sizeof(FRAME));
     for (size_t i = 0; i < nchannels; ++i) {
