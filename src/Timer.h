@@ -41,5 +41,5 @@ struct TimerConfig {
     void pprint();
 };
 
-void activate_t1(TimerConfig& cfg);
+TimerRc activate_t1(TimerConfig& cfg);
 void deactivate_t1();

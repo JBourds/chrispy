@@ -82,7 +82,16 @@ static struct Timer1 {
     }
 } TIMER1;
 
-void activate_t1(TimerConfig& cfg) { TIMER1.activate(cfg); }
+static const size_t NPRESCALERS = 5;
+static const pre_t PRESCALERS[] = {1, 8, 64, 256, 1024};
+
+TimerRc activate_t1(TimerConfig& cfg) {
+    TimerRc rc = cfg.compute(NPRESCALERS, PRESCALERS, UINT16_MAX, 0.0);
+    if (rc == TimerRc::Okay || rc == TimerRc::ErrorRange) {
+        TIMER1.activate(cfg);
+    }
+    return rc;
+}
 void deactivate_t1() { TIMER1.deactivate(); }
 
 enum TimerRc TimerConfig::compute(size_t nprescalers, pre_t* prescalers,
