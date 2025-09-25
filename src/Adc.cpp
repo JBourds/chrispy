@@ -16,8 +16,6 @@
 // Error encountered activating the channel
 #define ECHANNEL 0b10000
 
-#define CYCLES_PER_SAMPLE 13
-
 // Bit masks
 #define MUX_MASK 0b11111
 #define LOW_CHANNEL_MASK 0b111
@@ -33,8 +31,14 @@
 #define DIV_4 0b010
 #define DIV_2 0b001
 #define DIV_2_2 0b000
+
+#define CYCLES_PER_SAMPLE 13.5
+#define ADC_MAX_FREQ 200000
+
 static const size_t NPRESCALERS = 7;
+
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
+
 static uint8_t prescaler_mask(pre_t val) {
     switch (val) {
         case 2:
@@ -175,7 +179,11 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
         return rc;
     }
 
-    TimerConfig adc_cfg(F_CPU, CYCLES_PER_SAMPLE * sample_rate, Skew::High);
+    uint32_t adc_rate = CYCLES_PER_SAMPLE * sample_rate;
+    if (adc_rate > ADC_MAX_FREQ) {
+        return TimerRc::ImpossibleClock;
+    }
+    TimerConfig adc_cfg(F_CPU, adc_rate, Skew::High);
     rc = adc_cfg.compute(NPRESCALERS, PRESCALERS, 1, 0.0);
     if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
         return rc;
