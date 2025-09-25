@@ -15,6 +15,17 @@ struct Channel {
     inline int8_t mux_mask();
 };
 
+enum struct AdcSource : uint8_t {
+    FreeRunning = 0b000,
+    AnalogComparator = 0b001,
+    ExternalIrq0 = 0b010,
+    TimCnt0CmpA = 0b011,
+    TimCnt0Ovf = 0b100,
+    TimCnt1CmpB = 0b101,
+    TimCnt1Ovf = 0b110,
+    TimCnt1Cap = 0b111,
+};
+
 struct Adc {
     const uint8_t nchannels;
     Channel* channels;
@@ -31,6 +42,7 @@ struct Adc {
     void disable_interrupts();
     void enable_autotrigger();
     void disable_autotrigger();
+    void set_source(AdcSource src);
     TimerRc set_frequency(uint32_t sample_rate);
     int8_t start(BitResolution res, uint32_t sample_rate);
 

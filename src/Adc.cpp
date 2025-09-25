@@ -18,6 +18,7 @@
 
 // Bit masks
 #define MUX_MASK 0b11111
+#define SOURCE_MASK 0b111
 #define LOW_CHANNEL_MASK 0b111
 #define HIGH_CHANNEL_MASK ~LOW_CHANNEL_MASK
 #define PRESCALER_MASK 0b111
@@ -172,6 +173,11 @@ void Adc::disable_interrupts() { ADCSRA &= ~(1 << ADIE); }
 void Adc::enable_autotrigger() { ADCSRA |= (1 << ADATE); }
 void Adc::disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
 
+void Adc::set_source(enum AdcSource src) {
+    ADCSRB &= ~SOURCE_MASK;
+    ADCSRB |= static_cast<uint8_t>(src);
+}
+
 TimerRc Adc::set_frequency(uint32_t sample_rate) {
     TimerConfig host_cfg(F_CPU, sample_rate, Skew::High);
     TimerRc rc = activate_t1(host_cfg);
@@ -203,6 +209,7 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     on();
     enable_interrupts();
     enable_autotrigger();
+    set_source(AdcSource::TimCnt1CmpB);
     set_frequency(sample_rate);
     ADMUX = 1 << REFS0;
     // Left adjust result so we can just read from ADCH in ISR
