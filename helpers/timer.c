@@ -39,6 +39,21 @@ struct TimerConfig {
     double error;
 };
 
+const char* error_str(enum TimerRc rc) {
+    switch (rc) {
+        case IMPOSSIBLE_CLK:
+            return "Impossible Clock";
+        case ZERO_DIV:
+            return "Zero Division";
+        case COMPARE_RANGE:
+            return "Compare Range";
+        case ERROR_RANGE:
+            return "Compare Range";
+        default:
+            return "?";
+    }
+}
+
 void print_timer_config(struct TimerConfig* cfg) {
     printf("Prescaler: %u\n", cfg->prescaler);
     printf("Compare Value: %lu\n", cfg->compare);
@@ -98,7 +113,7 @@ enum TimerRc get_compare_value(struct TimerConfig* cfg, clk_t max_compare) {
         return ZERO_DIV;
     }
     double ideal_compare = cfg->src / (double)(cfg->desired * cfg->prescaler);
-    clk_t actual_compare = round(ideal_compare);
+    clk_t actual_compare = max(round(ideal_compare), 1);
     if (actual_compare > max_compare) {
         return COMPARE_RANGE;
     }
@@ -116,6 +131,7 @@ enum TimerRc get_timer_config(struct TimerConfig* cfg, size_t sz,
     pre_t best_pre = 0;
     clk_t best_cmp = 0;
     double best_error = INFINITY;
+    cfg->error = INFINITY;
     do {
         ssize_t i = find_smallest_prescaler(cfg, sz, prescalers);
         if (i < 0) {
@@ -146,28 +162,13 @@ enum TimerRc get_timer_config(struct TimerConfig* cfg, size_t sz,
     return cfg->error <= max_error ? 0 : ERROR_RANGE;
 }
 
-const char* error_str(enum TimerRc rc) {
-    switch (rc) {
-        case IMPOSSIBLE_CLK:
-            return "Impossible Clock";
-        case ZERO_DIV:
-            return "Zero Division";
-        case COMPARE_RANGE:
-            return "Compare Range";
-        case ERROR_RANGE:
-            return "Compare Range";
-        default:
-            return "?";
-    }
-}
-
 int main(int argc, char* argv[]) {
     size_t nprescalers = 5;
     pre_t prescalers[] = {1, 8, 64, 256, 1024};
     uint16_t max_compare = UINT16_MAX;
     struct TimerConfig cfg = {
         .src = 16000000,
-        .desired = 48000,
+        .desired = 1,
         .preference = PREFER_HIGH,
     };
     int32_t rc =
