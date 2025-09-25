@@ -8,14 +8,17 @@
 ISR(TIMER1_COMPA_vect) { digitalWrite(LED_PIN, !digitalRead(LED_PIN)); }
 
 void setup() {
+    pinMode(LED_PIN, OUTPUT);
+
     Serial.begin(9600);
     while (!Serial) {
     }
-    size_t nprescalers = 5;
-    pre_t prescalers[] = {1, 8, 64, 256, 1024};
+
     clk_t rate = 1;
     TimerConfig cfg(F_CPU, rate, Skew::High);
-    TimerRc rc = cfg.compute(nprescalers, prescalers, UINT16_MAX, 0.0);
+    cfg.pprint();
+
+    TimerRc rc = activate_t1(cfg);
     if (rc == TimerRc::ErrorRange) {
         Serial.println("Unable to get less than or equal to max error bound.");
     } else if (rc != TimerRc::Okay) {
@@ -24,10 +27,12 @@ void setup() {
         while (true) {
         }
     }
-    pinMode(LED_PIN, OUTPUT);
-    cfg.pprint();
-    activate_t1(cfg);
-    cfg.pprint();
+
+    // Set counter to compare value
+    cli();
+    OCR1A = cfg.compare;
+    sei();
+
     // Enable interrupts
     TIMSK1 |= (1 << OCIE1A);
 }

@@ -54,8 +54,6 @@ static struct Timer1 {
 
         TCCR1A = 0;
         TCCR1B = prescaler_mask(cfg.prescaler) | CTC_MODE;
-        OCR1A = cfg.compare;
-        OCR1B = cfg.compare;
         // Clear all flags and timer state
         TCNT1 = 0;
         TIMSK1 = 0;
