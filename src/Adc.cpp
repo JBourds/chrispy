@@ -37,8 +37,8 @@
 #define ADC_MAX_FREQ 200000
 
 static const size_t NPRESCALERS = 7;
-
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
+static pre_t SCRATCH_PRESCALERS[NPRESCALERS];
 
 static uint8_t prescaler_mask(pre_t val) {
     switch (val) {
@@ -199,7 +199,8 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
         return TimerRc::ImpossibleClock;
     }
     TimerConfig adc_cfg(F_CPU, adc_rate, Skew::High);
-    rc = adc_cfg.compute(NPRESCALERS, PRESCALERS, 1, 0.0);
+    memcpy(SCRATCH_PRESCALERS, PRESCALERS, sizeof(PRESCALERS));
+    rc = adc_cfg.compute(NPRESCALERS, SCRATCH_PRESCALERS, 1, 0.0);
     if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
         return rc;
     }
