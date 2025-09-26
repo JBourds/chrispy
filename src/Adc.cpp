@@ -163,16 +163,20 @@ ISR(ADC_vect) {
 
     if (FRAME.res == BitResolution::Eight) {
         uint8_t new_sample = ADCH;
-        uint8_t averaged = (FRAME.last_sample + new_sample) >> 1;
+        uint8_t averaged = FRAME.collected == 0
+                               ? new_sample
+                               : (FRAME.last_sample + new_sample) >> 1;
         buf[FRAME.sample_index++] = averaged;
         FRAME.last_sample = new_sample;
     } else {
         uint8_t low = ADCL;
         uint8_t high = ADCH;
         uint16_t new_sample = (high << CHAR_BIT) | low;
-        uint16_t averaged = (FRAME.last_sample + new_sample) >> 1;
+        uint16_t averaged = FRAME.collected == 0
+                               ? new_sample
+                               : (FRAME.last_sample + new_sample) >> 1;
         buf[FRAME.sample_index++] = averaged & UINT8_MAX;
-        buf[FRAME.sample_index++] = (averaged >> CHAR_BIT) & UINT8_MAX;
+        buf[FRAME.sample_index++] = averaged >> CHAR_BIT;
         FRAME.last_sample = new_sample;
     }
 
