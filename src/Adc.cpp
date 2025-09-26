@@ -82,20 +82,32 @@ static struct AdcFrame {
     volatile size_t sample_index;
     // Accounting information on # samples collected
     volatile uint32_t collected;
+    // Cached last sample to easily average new samples against for oversampling
+    uint16_t last_sample;
     // Flag to indicate what the last buffer written to was
     bool use_buf_1;
 } FRAME;
 
 static int8_t init_frame(BitResolution res, uint8_t nchannels,
                          Channel* channels, uint8_t* buf, size_t sz) {
+    const size_t nbuffers = 2;
+    const size_t oversampling_factor = 2;
     memset(&FRAME, 0, sizeof(FRAME));
     // Slice up the buffer into a double buffer
     size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
-    size_t samples_per_buf = sz / (2 * bytes_per_sample);
+    // Make sure we evenly fit on the number of interrupts which can
+    // be triggered per buffer, even with 2x oversampling
+    // e.g. With 2 bytes per sample, and 2x oversampling each buffer
+    // should be an increment of 4 bytes.
+    size_t bytes_per_interrupt = oversampling_factor * bytes_per_sample;
+    if ((sz & (bytes_per_interrupt - 1)) != 0) {
+        return -1;
+    }
+    size_t interrupts_per_buf = sz / (nbuffers * bytes_per_interrupt);
     FRAME.channels = channels;
     FRAME.nchannels = nchannels;
     FRAME.res = res;
-    FRAME.buf_sz = samples_per_buf * bytes_per_sample;
+    FRAME.buf_sz = interrupts_per_buf * bytes_per_interrupt;
     FRAME.buf1 = buf;
     FRAME.buf2 = buf + FRAME.buf_sz;
     return 0;
@@ -140,6 +152,11 @@ int8_t Channel::mux_mask() {
     }
 }
 
+/**
+ * ISR called whenever a match happens on line B.
+ * - Double buffered approach
+ * - 2x oversampled by taking average of new sample with last.
+ */
 ISR(ADC_vect) {
     if ((FRAME.eflags & EFULL) == EFULL) {
         TIFR1 = UINT8_MAX;
@@ -147,14 +164,29 @@ ISR(ADC_vect) {
     }
     FRAME.use_buf_1 = !(FRAME.eflags & BUF1FULL);
     uint8_t* buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
-    if (FRAME.res != BitResolution::Eight) {
-        buf[FRAME.sample_index++] = ADCL;
+    if (FRAME.res == BitResolution::Eight) {
+        uint8_t new_sample = ADCH;
+        uint8_t averaged = (FRAME.last_sample + new_sample) >> 1;
+        buf[FRAME.sample_index++] = averaged;
+        // buf[FRAME.sample_index++] = new_sample;
+        FRAME.last_sample = new_sample;
+    } else {
+        uint8_t low = ADCL;
+        uint8_t high = ADCH;
+        uint16_t new_sample = (high << CHAR_BIT) | low;
+        uint16_t averaged = (FRAME.last_sample + new_sample) >> 1;
+        buf[FRAME.sample_index++] = averaged & UINT8_MAX;
+        buf[FRAME.sample_index++] = (averaged >> CHAR_BIT) & UINT8_MAX;
+        // buf[FRAME.sample_index++] = low;
+        // buf[FRAME.sample_index++] = high;
+        FRAME.last_sample = new_sample;
     }
-    buf[FRAME.sample_index++] = ADCH;
+
     if (FRAME.sample_index == FRAME.buf_sz) {
         FRAME.eflags |= (FRAME.use_buf_1 ? BUF1FULL : BUF2FULL);
         FRAME.sample_index = 0;
     }
+
     ++FRAME.collected;
     TIFR1 = UINT8_MAX;
 }
