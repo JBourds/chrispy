@@ -5,6 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define OVERSAMPLE
 #define TEN_TO_SIXTEEN_BIT(x) (x << 6)
 
 // Active buffer. 0 = `buf1`, 1 = `buf2`
@@ -160,25 +161,35 @@ ISR(ADC_vect) {
         TIFR1 = UINT8_MAX;
         return;
     }
+
     FRAME.use_buf_1 = !(FRAME.eflags & BUF1FULL);
     uint8_t* buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
 
     if (FRAME.res == BitResolution::Eight) {
         uint8_t new_sample = ADCH;
+#ifdef OVERSAMPLE
         uint8_t averaged = FRAME.collected == 0
                                ? new_sample
                                : (FRAME.last_sample + new_sample) >> 1;
         buf[FRAME.sample_index++] = averaged;
+#else
+        buf[FRAME.sample_index++] = new_sample;
+#endif
         FRAME.last_sample = new_sample;
     } else {
         uint8_t low = ADCL;
         uint8_t high = ADCH;
         uint16_t new_sample = TEN_TO_SIXTEEN_BIT((high << CHAR_BIT) | low);
+#ifdef OVERSAMPLE
         uint16_t averaged = FRAME.collected == 0
-                               ? new_sample
-                               : (FRAME.last_sample + new_sample) >> 1;
+                                ? new_sample
+                                : (FRAME.last_sample + new_sample) >> 1;
         buf[FRAME.sample_index++] = averaged & UINT8_MAX;
         buf[FRAME.sample_index++] = averaged >> CHAR_BIT;
+#else
+        buf[FRAME.sample_index++] = new_sample & UINT8_MAX;
+        buf[FRAME.sample_index++] = new_sample >> CHAR_BIT;
+#endif
         FRAME.last_sample = new_sample;
     }
 
