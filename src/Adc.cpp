@@ -86,6 +86,8 @@ static struct AdcFrame {
     uint16_t last_sample;
     // Flag to indicate what the last buffer written to was
     bool use_buf_1;
+    // Is the frame currently in use?
+    bool active;
 } FRAME;
 
 static int8_t init_frame(BitResolution res, uint8_t nchannels,
@@ -101,6 +103,7 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
     FRAME.buf_sz = samples_per_buf * bytes_per_sample;
     FRAME.buf1 = buf;
     FRAME.buf2 = buf + FRAME.buf_sz;
+    FRAME.active = true;
     return 0;
 }
 
@@ -149,7 +152,9 @@ int8_t Channel::mux_mask() {
  * - 2x oversampled by taking average of new sample with last.
  */
 ISR(ADC_vect) {
-    if ((FRAME.eflags & EFULL) == EFULL) {
+    if (!FRAME.active) {
+        return;
+    } else if ((FRAME.eflags & EFULL) == EFULL) {
         TIFR1 = UINT8_MAX;
         return;
     }
@@ -309,6 +314,7 @@ uint32_t Adc::stop() {
     disable_autotrigger();
     deactivate_t1();
     uint32_t collected = FRAME.collected;
+    FRAME.active = false;
     for (size_t i = 0; i < nchannels; ++i) {
         if (channels[i].power >= 0) {
             digitalWrite(channels[i].power, LOW);
