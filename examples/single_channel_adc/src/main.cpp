@@ -47,7 +47,12 @@ void setup() {
         }
     }
     if (!REC.open("adc_rec.wav", O_TRUNC | O_WRITE | O_CREAT)) {
-        Serial.println("Failed to open recrding file.");
+        Serial.println("Failed to open recording file.");
+        while (true) {
+        }
+    }
+    if (!REC.preAllocate(SAMPLE_RATE * DURATION_SEC + sizeof(WavHeader))) {
+        Serial.println("Failed to preallocate recording space.");
         while (true) {
         }
     }
@@ -80,7 +85,9 @@ void loop() {
             if (tmp_buf == nullptr) {
                 continue;
             }
+            uint32_t t0 = micros();
             size_t nbytes = REC.write(tmp_buf, sz);
+            Serial.println(micros() - t0);
             if (nbytes != sz) {
                 Serial.println("Error writing to file!");
                 Serial.print("Expected ");
@@ -119,8 +126,11 @@ void loop() {
     Serial.println(sample_rate);
 
     hdr.fill(RESOLUTION, static_cast<uint32_t>(REC.fileSize()), sample_rate);
-    if (!(REC.seekSet(0) && REC.write(&hdr, sizeof(hdr)) == sizeof(hdr))) {
-        Serial.println("Error writing out filled in wav header.");
+    if (!(REC.truncate() && REC.seekSet(0) &&
+          REC.write(&hdr, sizeof(hdr)) == sizeof(hdr))) {
+        Serial.println(
+            "Error shrinking file to used size and writing out filled in wav "
+            "header.");
         goto done;
     }
 
