@@ -135,6 +135,36 @@ enum TimerRc TimerConfig::compute(size_t nprescalers, pre_t* prescalers,
     return this->error <= max_error ? TimerRc::Okay : TimerRc::ErrorRange;
 }
 
+static ssize_t find_smallest_prescaler(struct TimerConfig* cfg, size_t sz,
+                                       pre_t* prescalers) {
+    ssize_t prescaler_index = -1;
+    for (size_t i = 0; i < sz; ++i) {
+        // Avoid divide by zero, and allow for this to be used in a fixed point
+        // algorithm in case some other prescaler works better
+        if (prescalers[i] == SKIP_PRESCALER) {
+            continue;
+        } else if ((cfg->src / prescalers[i]) >= cfg->desired) {
+            cfg->prescaler = prescalers[i];
+            prescaler_index = i;
+            break;
+        }
+    }
+    return prescaler_index;
+}
+
+static enum TimerRc get_compare_value(struct TimerConfig* cfg,
+                                      clk_t max_compare) {
+    if (cfg->desired == 0 || cfg->prescaler == 0) {
+        return TimerRc::ZeroDiv;
+    }
+    double ideal_compare = cfg->src / (double)(cfg->desired * cfg->prescaler);
+    clk_t actual_compare = max(round(ideal_compare), 1);
+    actual_compare = min(actual_compare, max_compare);
+    cfg->compare = actual_compare;
+    recompute(cfg);
+    return validate_preference(cfg);
+}
+
 void TimerConfig::pprint() {
     Serial.print("Prescaler: ");
     Serial.println(this->prescaler);
@@ -198,39 +228,6 @@ static void recompute(struct TimerConfig* cfg) {
     compute_actual(cfg);
     compute_error(cfg);
 }
-
-static ssize_t find_smallest_prescaler(struct TimerConfig* cfg, size_t sz,
-                                       pre_t* prescalers) {
-    ssize_t prescaler_index = -1;
-    for (size_t i = 0; i < sz; ++i) {
-        // Avoid divide by zero, and allow for this to be used in a fixed point
-        // algorithm in case some other prescaler works better
-        if (prescalers[i] == SKIP_PRESCALER) {
-            continue;
-        } else if ((cfg->src / prescalers[i]) > cfg->desired) {
-            cfg->prescaler = prescalers[i];
-            prescaler_index = i;
-            break;
-        }
-    }
-    return prescaler_index;
-}
-
-static enum TimerRc get_compare_value(struct TimerConfig* cfg,
-                                      clk_t max_compare) {
-    if (cfg->desired == 0 || cfg->prescaler == 0) {
-        return TimerRc::ZeroDiv;
-    }
-    double ideal_compare = cfg->src / (double)(cfg->desired * cfg->prescaler);
-    clk_t actual_compare = max(round(ideal_compare), 1);
-    if (actual_compare > max_compare) {
-        return TimerRc::CompareRange;
-    }
-    cfg->compare = actual_compare;
-    recompute(cfg);
-    return validate_preference(cfg);
-}
-
 static uint8_t prescaler_mask(pre_t val) {
     switch (val) {
         case 1:
