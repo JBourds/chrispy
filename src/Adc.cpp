@@ -82,6 +82,8 @@ static struct AdcFrame {
     volatile size_t sample_index;
     // Accounting information on # samples collected
     volatile uint32_t collected;
+    // Flag to indicate what the last buffer written to was
+    bool use_buf_1;
 } FRAME;
 
 static int8_t init_frame(BitResolution res, uint8_t nchannels,
@@ -143,14 +145,14 @@ ISR(ADC_vect) {
         TIFR1 = UINT8_MAX;
         return;
     }
-    bool use_buf_1 = !(FRAME.eflags & BUF1FULL);
-    uint8_t* buf = use_buf_1 ? FRAME.buf1 : FRAME.buf2;
+    FRAME.use_buf_1 = !(FRAME.eflags & BUF1FULL);
+    uint8_t* buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
     if (FRAME.res != BitResolution::Eight) {
         buf[FRAME.sample_index++] = ADCL;
     }
     buf[FRAME.sample_index++] = ADCH;
     if (FRAME.sample_index == FRAME.buf_sz) {
-        FRAME.eflags |= (use_buf_1 ? BUF1FULL : BUF2FULL);
+        FRAME.eflags |= (FRAME.use_buf_1 ? BUF1FULL : BUF2FULL);
         FRAME.sample_index = 0;
     }
     ++FRAME.collected;
@@ -228,6 +230,25 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     return 0;
 }
 
+int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz) {
+    if (buf == nullptr) {
+        return -1;
+    }
+    // Drain full buffers first
+    int8_t rc = swap_buffer(buf, sz);
+    if (rc == 0) {
+        return rc;
+    }
+    // Drain in-progress buffer if one was being written
+    if (FRAME.sample_index == 0) {
+        return -2;
+    }
+    *buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
+    sz = FRAME.sample_index;
+    FRAME.sample_index = 0;
+    return 0;
+}
+
 int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
     if (buf == nullptr) {
         return -1;
@@ -241,12 +262,12 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
             return -2;
         }
     } else {
-        if (*buf == FRAME.buf1) {
+        if (*buf == FRAME.buf1 && FRAME.eflags & BUF1FULL) {
             noInterrupts();
             FRAME.eflags ^= BUF1FULL;
             interrupts();
             *buf = FRAME.eflags & BUF2FULL ? FRAME.buf2 : nullptr;
-        } else if (*buf == FRAME.buf2) {
+        } else if (*buf == FRAME.buf2 && FRAME.eflags & BUF1FULL) {
             noInterrupts();
             FRAME.eflags ^= BUF2FULL;
             interrupts();
@@ -259,13 +280,14 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
     return 0;
 }
 
+uint32_t Adc::collected() { return FRAME.collected; }
+
 uint32_t Adc::stop() {
     off();
     disable_interrupts();
     disable_autotrigger();
     deactivate_t1();
     uint32_t collected = FRAME.collected;
-    memset(&FRAME, 0, sizeof(FRAME));
     for (size_t i = 0; i < nchannels; ++i) {
         if (channels[i].power >= 0) {
             digitalWrite(channels[i].power, LOW);

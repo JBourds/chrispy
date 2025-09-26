@@ -12,6 +12,7 @@ struct Channel {
     // Power pin. If negative, indicates no power is needed.
     int8_t power;
 
+    // Get bit pattern for mux mask.
     inline int8_t mux_mask();
 };
 
@@ -35,15 +36,44 @@ struct Adc {
 
     Adc(uint8_t _nchannels, Channel* _channels, uint8_t* _buf, size_t _sz)
         : nchannels(_nchannels), channels(_channels), buf(_buf), sz(_sz) {}
+
     void on();
+
     void off();
+
     void sleep();
+
     void enable_interrupts();
+
     void disable_interrupts();
+
     void enable_autotrigger();
+
     void disable_autotrigger();
+
+    /**
+     * Set the autotrigger source.
+     * @param src: Which source to use for auto triggering.
+     */
     void set_source(AdcSource src);
+
+    /**
+     * Helper function to setup the hardware timer and ADC clocks for sampling.
+     *
+     * @param sample_rate: Sampling frequency in Hz.
+     *
+     * @returns (TimerRc): Return code. `TimerRc::Okay` if both succeed.
+     */
     TimerRc set_frequency(uint32_t sample_rate);
+
+    /**
+     * Start ADC sampling at a certain rate with a given bit resolution.
+     *
+     * @param res: Bit resolution to use.
+     * @param sample_rate: Sample rate in Hz to try and record at,
+     *
+     * @returns (int8_t): Return code. 0 if all is good, negative otherwise.
+     */
     int8_t start(BitResolution res, uint32_t sample_rate);
 
     /**
@@ -59,6 +89,7 @@ struct Adc {
      * value otherwise.
      */
     int16_t next_sample(size_t& ch_index);
+
     /**
      * Attempt to swap the buffer in the argument for a new
      * one. If `buf` = nullptr, try to give a full buffer.
@@ -77,5 +108,23 @@ struct Adc {
      * @returns (int8_t): 0 if success. Nonzero otherwise.
      */
     int8_t swap_buffer(uint8_t** buf, size_t& sz);
+
+    /**
+     * NOT SAFE TO USE WHEN THE ADC IS ENABLED!
+     * Identical API as `swap_buffer` but this will also give the active buffer.
+     * Used to drain any remaining samples from the buffer.
+     */
+    int8_t drain_buffer(uint8_t** buf, size_t& sz);
+
+    /**
+     * @returns (uint32_t): Number of samples collected in the current/previous
+     * round of sampling.
+     */
+    uint32_t collected();
+
+    /**
+     * Stops ADC sampling and performs cleanup on registers.
+     * @returns (uint32_t): Number of samples collected.
+     */
     uint32_t stop();
 };
