@@ -247,10 +247,10 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     this->res = res;
 
     on();
-    enable_interrupts();
-    enable_autotrigger();
     set_source(AdcSource::TimCnt1CmpB);
     set_frequency(sample_rate);
+    enable_autotrigger();
+    enable_interrupts();
     ADMUX = 1 << REFS0;
     // Left adjust result so we can just read from ADCH in ISR
     if (res == BitResolution::Eight) {
