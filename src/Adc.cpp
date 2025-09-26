@@ -207,6 +207,7 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
     uint8_t prescaler = prescaler_mask(adc_cfg.prescaler);
     ADCSRA &= ~PRESCALER_MASK;
     ADCSRA |= prescaler;
+    return rc;
 }
 
 int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
