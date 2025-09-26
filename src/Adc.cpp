@@ -194,10 +194,7 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
     OCR1B = host_cfg.compare;
     sei();
 
-    uint32_t adc_rate = CYCLES_PER_SAMPLE * sample_rate;
-    if (adc_rate > ADC_MAX_FREQ) {
-        return TimerRc::ImpossibleClock;
-    }
+    clk_t adc_rate = CYCLES_PER_SAMPLE * sample_rate;
     TimerConfig adc_cfg(F_CPU, adc_rate, Skew::High);
     memcpy(SCRATCH_PRESCALERS, PRESCALERS, sizeof(PRESCALERS));
     rc = adc_cfg.compute(NPRESCALERS, SCRATCH_PRESCALERS, 1, 0.0);
