@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define TEN_TO_SIXTEEN_BIT(x) (x << 6)
+
 // Active buffer. 0 = `buf1`, 1 = `buf2`
 #define BUF2 0b1
 // Buffer 1 is full and ready to be emptied
@@ -171,7 +173,7 @@ ISR(ADC_vect) {
     } else {
         uint8_t low = ADCL;
         uint8_t high = ADCH;
-        uint16_t new_sample = (high << CHAR_BIT) | low;
+        uint16_t new_sample = TEN_TO_SIXTEEN_BIT((high << CHAR_BIT) | low);
         uint16_t averaged = FRAME.collected == 0
                                ? new_sample
                                : (FRAME.last_sample + new_sample) >> 1;
