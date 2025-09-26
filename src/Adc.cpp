@@ -140,6 +140,7 @@ int8_t Channel::mux_mask() {
 
 ISR(ADC_vect) {
     if ((FRAME.eflags & EFULL) == EFULL) {
+        TIFR1 = UINT8_MAX;
         return;
     }
     bool use_buf_1 = !(FRAME.eflags & BUF1FULL);
@@ -153,6 +154,7 @@ ISR(ADC_vect) {
         FRAME.sample_index = 0;
     }
     ++FRAME.collected;
+    TIFR1 = UINT8_MAX;
 }
 
 void Adc::on() {
