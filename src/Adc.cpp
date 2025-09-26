@@ -309,14 +309,14 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
         }
     } else {
         if (*buf == FRAME.buf1 && FRAME.eflags & BUF1FULL) {
-            noInterrupts();
+            cli();
             FRAME.eflags ^= BUF1FULL;
-            interrupts();
+            sei();
             *buf = FRAME.eflags & BUF2FULL ? FRAME.buf2 : nullptr;
         } else if (*buf == FRAME.buf2 && FRAME.eflags & BUF1FULL) {
-            noInterrupts();
+            cli();
             FRAME.eflags ^= BUF2FULL;
-            interrupts();
+            sei();
             *buf = FRAME.eflags & BUF1FULL ? FRAME.buf1 : nullptr;
         } else {
             return -3;
