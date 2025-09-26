@@ -43,6 +43,7 @@ static struct Timer1 {
             deactivate();
         }
         cli();
+        // Save register state
         tccr1a = TCCR1A;
         tccr1b = TCCR1B;
         tccr1c = TCCR1C;
@@ -68,6 +69,7 @@ static struct Timer1 {
             return;
         }
         cli();
+        // Restore register state
         TCCR1A = tccr1a;
         TCCR1B = tccr1b;
         TCCR1C = tccr1c;
