@@ -91,23 +91,14 @@ static struct AdcFrame {
 static int8_t init_frame(BitResolution res, uint8_t nchannels,
                          Channel* channels, uint8_t* buf, size_t sz) {
     const size_t nbuffers = 2;
-    const size_t oversampling_factor = 2;
     memset(&FRAME, 0, sizeof(FRAME));
     // Slice up the buffer into a double buffer
     size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
-    // Make sure we evenly fit on the number of interrupts which can
-    // be triggered per buffer, even with 2x oversampling
-    // e.g. With 2 bytes per sample, and 2x oversampling each buffer
-    // should be an increment of 4 bytes.
-    size_t bytes_per_interrupt = oversampling_factor * bytes_per_sample;
-    if ((sz & (bytes_per_interrupt - 1)) != 0) {
-        return -1;
-    }
-    size_t interrupts_per_buf = sz / (nbuffers * bytes_per_interrupt);
+    size_t samples_per_buf = sz / (nbuffers * bytes_per_sample);
     FRAME.channels = channels;
     FRAME.nchannels = nchannels;
     FRAME.res = res;
-    FRAME.buf_sz = interrupts_per_buf * bytes_per_interrupt;
+    FRAME.buf_sz = samples_per_buf * bytes_per_sample;
     FRAME.buf1 = buf;
     FRAME.buf2 = buf + FRAME.buf_sz;
     return 0;
@@ -164,11 +155,11 @@ ISR(ADC_vect) {
     }
     FRAME.use_buf_1 = !(FRAME.eflags & BUF1FULL);
     uint8_t* buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
+
     if (FRAME.res == BitResolution::Eight) {
         uint8_t new_sample = ADCH;
         uint8_t averaged = (FRAME.last_sample + new_sample) >> 1;
         buf[FRAME.sample_index++] = averaged;
-        // buf[FRAME.sample_index++] = new_sample;
         FRAME.last_sample = new_sample;
     } else {
         uint8_t low = ADCL;
@@ -177,8 +168,6 @@ ISR(ADC_vect) {
         uint16_t averaged = (FRAME.last_sample + new_sample) >> 1;
         buf[FRAME.sample_index++] = averaged & UINT8_MAX;
         buf[FRAME.sample_index++] = (averaged >> CHAR_BIT) & UINT8_MAX;
-        // buf[FRAME.sample_index++] = low;
-        // buf[FRAME.sample_index++] = high;
         FRAME.last_sample = new_sample;
     }
 
