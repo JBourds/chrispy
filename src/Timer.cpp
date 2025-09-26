@@ -84,9 +84,11 @@ static struct Timer1 {
 
 static const size_t NPRESCALERS = 5;
 static const pre_t PRESCALERS[] = {1, 8, 64, 256, 1024};
+static const pre_t SCRATCH_PRESCALERS[NPRESCALERS];
 
 TimerRc activate_t1(TimerConfig& cfg) {
-    TimerRc rc = cfg.compute(NPRESCALERS, PRESCALERS, UINT16_MAX, 0.0);
+    memcpy(SCRATCH_PRESCALERS, PRESCALERS, sizeof(PRESCALERS));
+    TimerRc rc = cfg.compute(NPRESCALERS, SCRATCH_PRESCALERS, UINT16_MAX, 0.0);
     if (rc == TimerRc::Okay || rc == TimerRc::ErrorRange) {
         TIMER1.activate(cfg);
     }
