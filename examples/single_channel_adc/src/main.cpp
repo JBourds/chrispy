@@ -7,7 +7,7 @@
 #include "WavHeader.h"
 
 #define MIC_PIN A0
-#define MIC_EN 22
+#define MIC_POWER 22
 #define POWER_5V 5
 #define CS_PIN 12
 #define SD_EN 4
@@ -16,7 +16,7 @@
 
 // Recording
 #define DURATION_SEC 5ul
-#define BUF_SZ 1024
+#define BUF_SZ 4096
 uint8_t buf[BUF_SZ] = {0};
 uint32_t deadline = 0;
 
@@ -31,14 +31,14 @@ void setup() {
     }
     delay(500);
 
-    pinMode(MIC_EN, OUTPUT);
+    pinMode(MIC_POWER, OUTPUT);
     pinMode(POWER_5V, OUTPUT);
     pinMode(SD_EN, OUTPUT);
 
     pinMode(MIC_PIN, INPUT);
 
     digitalWrite(SD_EN, HIGH);
-    digitalWrite(MIC_EN, LOW);
+    digitalWrite(MIC_POWER, LOW);
     digitalWrite(POWER_5V, HIGH);
 
     if (!SD.begin(CS_PIN)) {
@@ -62,7 +62,7 @@ void setup() {
 
 void loop() {
     uint8_t nchannels = 1;
-    Channel channels[] = {{.pin = A0, .power = 22}};
+    Channel channels[] = {{.pin = MIC_PIN, .power = MIC_POWER}};
     Adc adc(nchannels, channels, buf, BUF_SZ);
     WavHeader hdr;
     uint8_t* tmp_buf = nullptr;
