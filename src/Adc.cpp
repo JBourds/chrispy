@@ -5,7 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define TEN_TO_SIXTEEN_BIT(x) (x << 6)
+#define SIXTEEN_BIT_BIAS (UINT16_MAX >> 1)
+#define TEN_TO_SIXTEEN_BIT(x) ((x << 6) - SIXTEEN_BIT_BIAS)
 
 // Buffer 1 is full and ready to be emptied
 #define BUF1FULL 0b1
