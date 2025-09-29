@@ -333,10 +333,5 @@ uint32_t Adc::stop() {
     deactivate_t1();
     uint32_t collected = FRAME.collected;
     FRAME.active = false;
-    for (size_t i = 0; i < nchannels; ++i) {
-        if (channels[i].power >= 0) {
-            digitalWrite(channels[i].power, LOW);
-        }
-    }
     return collected;
 }
