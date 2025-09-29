@@ -5,7 +5,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define OVERSAMPLE
 #define TEN_TO_SIXTEEN_BIT(x) (x << 6)
 
 // Buffer 1 is full and ready to be emptied
@@ -16,6 +15,8 @@
 #define EFULL (BUF1FULL | BUF2FULL)
 // Error encountered activating the channel
 #define ECHANNEL 0b100
+// Signal that this is the second sample
+#define ESECOND 0b10000
 
 // Bit masks
 #define MUX_MASK 0b11111
@@ -34,8 +35,7 @@
 #define DIV_2 0b001
 #define DIV_2_2 0b000
 
-#define CYCLES_PER_SAMPLE 13.5
-#define ADC_MAX_FREQ 200000
+#define ADC_CYCLES_PER_SAMPLE 13.5
 
 static const size_t NPRESCALERS = 7;
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
@@ -124,6 +124,27 @@ static inline bool activate(Channel& ch) {
     return true;
 }
 
+static inline void increment_sample() {
+    ++FRAME.collected;
+    if (FRAME.sample_index == FRAME.buf_sz) {
+        FRAME.eflags |= (FRAME.use_buf_1 ? BUF1FULL : BUF2FULL);
+        FRAME.sample_index = 0;
+    }
+}
+
+static inline void swap_channels() {
+    // Hop between channels if there are more than one
+    if (FRAME.nchannels > 1) {
+        ++FRAME.ch_index;
+        if (FRAME.ch_index == FRAME.nchannels) {
+            FRAME.ch_index = 0;
+        }
+        if (!activate(FRAME.channels[FRAME.ch_index])) {
+            FRAME.eflags |= ECHANNEL;
+        }
+    }
+}
+
 int8_t Channel::mux_mask() {
     switch (pin) {
         case A0:
@@ -153,10 +174,10 @@ int8_t Channel::mux_mask() {
  * - 2x oversampled by taking average of new sample with last.
  */
 ISR(ADC_vect) {
+    TIFR1 = UINT8_MAX;
     if (!FRAME.active) {
         return;
     } else if ((FRAME.eflags & EFULL) == EFULL) {
-        TIFR1 = UINT8_MAX;
         return;
     }
 
@@ -165,39 +186,31 @@ ISR(ADC_vect) {
 
     if (FRAME.res == BitResolution::Eight) {
         uint8_t new_sample = ADCH;
-#ifdef OVERSAMPLE
-        uint8_t averaged = FRAME.collected == 0
-                               ? new_sample
-                               : (FRAME.last_sample + new_sample) >> 1;
-        buf[FRAME.sample_index++] = averaged;
-#else
-        buf[FRAME.sample_index++] = new_sample;
-#endif
-        FRAME.last_sample = new_sample;
+        if (FRAME.eflags & ESECOND) {
+            buf[FRAME.sample_index++] = (new_sample + FRAME.last_sample) >> 1;
+            increment_sample();
+            swap_channels();
+            FRAME.eflags ^= ESECOND;
+        } else {
+            FRAME.last_sample = new_sample;
+            FRAME.eflags |= ESECOND;
+        }
     } else {
         uint8_t low = ADCL;
         uint8_t high = ADCH;
         uint16_t new_sample = TEN_TO_SIXTEEN_BIT((high << CHAR_BIT) | low);
-#ifdef OVERSAMPLE
-        uint16_t averaged = FRAME.collected == 0
-                                ? new_sample
-                                : (FRAME.last_sample + new_sample) >> 1;
-        buf[FRAME.sample_index++] = averaged & UINT8_MAX;
-        buf[FRAME.sample_index++] = averaged >> CHAR_BIT;
-#else
-        buf[FRAME.sample_index++] = new_sample & UINT8_MAX;
-        buf[FRAME.sample_index++] = new_sample >> CHAR_BIT;
-#endif
-        FRAME.last_sample = new_sample;
+        if (FRAME.eflags & ESECOND) {
+            new_sample = (new_sample + FRAME.last_sample) >> 1;
+            buf[FRAME.sample_index++] = new_sample & UINT8_MAX;
+            buf[FRAME.sample_index++] = new_sample >> CHAR_BIT;
+            increment_sample();
+            swap_channels();
+            FRAME.eflags ^= ESECOND;
+        } else {
+            FRAME.last_sample = new_sample;
+            FRAME.eflags |= ESECOND;
+        }
     }
-
-    if (FRAME.sample_index == FRAME.buf_sz) {
-        FRAME.eflags |= (FRAME.use_buf_1 ? BUF1FULL : BUF2FULL);
-        FRAME.sample_index = 0;
-    }
-
-    ++FRAME.collected;
-    TIFR1 = UINT8_MAX;
 }
 
 void Adc::on() {
@@ -224,6 +237,11 @@ void Adc::set_source(enum AdcSource src) {
 }
 
 TimerRc Adc::set_frequency(uint32_t sample_rate) {
+    // For each channel
+    sample_rate *= this->nchannels;
+    // 2x oversampling
+    sample_rate += sample_rate;
+
     TimerConfig host_cfg(F_CPU, sample_rate, Skew::High);
     TimerRc rc = activate_t1(host_cfg);
     if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
@@ -237,7 +255,13 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
     OCR1B = host_cfg.compare;
     sei();
 
-    clk_t adc_rate = CYCLES_PER_SAMPLE * sample_rate;
+    clk_t adc_rate = ADC_CYCLES_PER_SAMPLE * sample_rate;
+    // It takes twice as long for each sample when swapping channels
+    // since every conversion is the "first" conversion. If there is only one
+    // channel, we don't ever need to switch though.
+    if (this->nchannels > 1) {
+        adc_rate += adc_rate;
+    }
     TimerConfig adc_cfg(F_CPU, adc_rate, Skew::High);
     memcpy(SCRATCH_PRESCALERS, PRESCALERS, sizeof(PRESCALERS));
     rc = adc_cfg.compute(NPRESCALERS, SCRATCH_PRESCALERS, 1, 0.0);
