@@ -8,16 +8,14 @@
 #define OVERSAMPLE
 #define TEN_TO_SIXTEEN_BIT(x) (x << 6)
 
-// Active buffer. 0 = `buf1`, 1 = `buf2`
-#define BUF2 0b1
 // Buffer 1 is full and ready to be emptied
-#define BUF1FULL 0b10
+#define BUF1FULL 0b1
 // Buffer 2 is full and ready to be emptied
-#define BUF2FULL 0b100
+#define BUF2FULL 0b10
 // Only an error if both buffers are full
 #define EFULL (BUF1FULL | BUF2FULL)
 // Error encountered activating the channel
-#define ECHANNEL 0b10000
+#define ECHANNEL 0b100
 
 // Bit masks
 #define MUX_MASK 0b11111
