@@ -6,8 +6,7 @@
 #include <math.h>
 
 #define SKIP_PRESCALER 0
-#define FAST_PWM_MODEA (0b11 << WGM10)
-#define FAST_PWM_MODEB (0b11 << WGM12)
+#define CTC_MODE (0b01 << WGM12)
 
 #ifndef max
 #define max(a, b) (a >= b ? a : b)
@@ -54,8 +53,8 @@ static struct Timer1 {
         icr1 = ICR1;
         timsk1 = TIMSK1;
 
-        TCCR1A = FAST_PWM_MODEA;
-        TCCR1B = prescaler_mask(cfg.prescaler) | FAST_PWM_MODEB;
+        TCCR1A = 0;
+        TCCR1B = prescaler_mask(cfg.prescaler) | CTC_MODE;
         // Clear all flags and timer state
         TCNT1 = 0;
         TIMSK1 = 0;
