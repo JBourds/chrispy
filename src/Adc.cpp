@@ -295,7 +295,7 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     }
     enable_autotrigger();
     enable_interrupts();
-    ADCSRA |= (1 << ADSC);
+
     return 0;
 }
 
