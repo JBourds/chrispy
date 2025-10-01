@@ -285,7 +285,9 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     on();
     set_source(AdcSource::TimCnt1CmpB);
     set_frequency(sample_rate);
-    ADMUX = 1 << REFS0;
+    // 5V analog reference
+    ADMUX = (1 << REFS0);
+    // Start with first channel
     if (!activate(channels[0])) {
         return 1;
     }
