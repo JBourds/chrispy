@@ -9,7 +9,7 @@
 #define MIC_PIN A0
 #define MIC_POWER 22
 #define POWER_5V 5
-#define CS_PIN 12
+#define SD_CS_PIN 12
 #define SD_EN 4
 #define RESOLUTION BitResolution::Eight
 #define SAMPLE_RATE 24000ul
@@ -19,6 +19,16 @@
 #define BUF_SZ 4096
 uint8_t buf[BUF_SZ] = {0};
 uint32_t deadline = 0;
+
+// Max SPI rate for AVR is 10 MHz for F_CPU 20 MHz, 8 MHz for F_CPU 16 MHz.
+#define SPI_CLOCK SD_SCK_MHZ(F_CPU / 2)
+
+// Select fastest interface.
+#if ENABLE_DEDICATED_SPI
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
+#else
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
+#endif
 
 SdFat SD;
 SdFile REC;
@@ -42,7 +52,7 @@ void setup() {
     digitalWrite(MIC_POWER, LOW);
     digitalWrite(POWER_5V, HIGH);
 
-    if (!SD.begin(CS_PIN, SPI_FULL_SPEED)) {
+    if (!SD.begin(SD_CONFIG)) {
         Serial.println("SD init failed!");
         while (true) {
         }
