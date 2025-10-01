@@ -9,6 +9,7 @@
 #define MIC_PIN A0
 #define MIC_POWER 22
 #define POWER_5V 5
+#define POWER_3V 3
 #define SD_CS_PIN 12
 #define SD_EN 4
 #define RESOLUTION BitResolution::Eight
@@ -44,6 +45,7 @@ void setup() {
 
     pinMode(MIC_POWER, OUTPUT);
     pinMode(POWER_5V, OUTPUT);
+    pinMode(POWER_3V, OUTPUT);
     pinMode(SD_EN, OUTPUT);
 
     pinMode(MIC_PIN, INPUT);
@@ -51,6 +53,7 @@ void setup() {
     digitalWrite(SD_EN, HIGH);
     digitalWrite(MIC_POWER, LOW);
     digitalWrite(POWER_5V, HIGH);
+    digitalWrite(POWER_3V, LOW);
 
     if (!SD.begin(SD_CONFIG)) {
         Serial.println("SD init failed!");
