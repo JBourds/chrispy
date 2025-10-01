@@ -22,6 +22,7 @@ uint32_t deadline = 0;
 
 SdFat SD;
 SdFile REC;
+const char* FILENAME = "adc_rec.wav";
 #define NUM_SAMPLES (SAMPLE_RATE * DURATION_SEC)
 
 void setup() {
@@ -41,12 +42,12 @@ void setup() {
     digitalWrite(MIC_POWER, LOW);
     digitalWrite(POWER_5V, HIGH);
 
-    if (!SD.begin(CS_PIN)) {
+    if (!SD.begin(CS_PIN, SPI_FULL_SPEED)) {
         Serial.println("SD init failed!");
         while (true) {
         }
     }
-    if (!REC.open("adc_rec.wav", O_TRUNC | O_WRITE | O_CREAT)) {
+    if (!REC.open(FILENAME, O_TRUNC | O_WRITE | O_CREAT)) {
         Serial.println("Failed to open recording file.");
         while (true) {
         }
