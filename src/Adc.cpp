@@ -186,31 +186,17 @@ ISR(ADC_vect) {
     uint8_t* buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
 
     if (FRAME.res == BitResolution::Eight) {
-        uint8_t new_sample = ADCH;
-        if (FRAME.eflags & ESECOND) {
-            buf[FRAME.sample_index++] = (new_sample + FRAME.last_sample) >> 1;
-            increment_sample();
-            swap_channels();
-            FRAME.eflags ^= ESECOND;
-        } else {
-            FRAME.last_sample = new_sample;
-            FRAME.eflags |= ESECOND;
-        }
+        buf[FRAME.sample_index++] = ADCH;
+        increment_sample();
+        swap_channels();
     } else {
         uint8_t low = ADCL;
         uint8_t high = ADCH;
         uint16_t new_sample = TEN_TO_SIXTEEN_BIT((high << CHAR_BIT) | low);
-        if (FRAME.eflags & ESECOND) {
-            new_sample = (new_sample + FRAME.last_sample) >> 1;
-            buf[FRAME.sample_index++] = new_sample & UINT8_MAX;
-            buf[FRAME.sample_index++] = new_sample >> CHAR_BIT;
-            increment_sample();
-            swap_channels();
-            FRAME.eflags ^= ESECOND;
-        } else {
-            FRAME.last_sample = new_sample;
-            FRAME.eflags |= ESECOND;
-        }
+        buf[FRAME.sample_index++] = new_sample & UINT8_MAX;
+        buf[FRAME.sample_index++] = new_sample >> CHAR_BIT;
+        increment_sample();
+        swap_channels();
     }
 }
 
@@ -240,8 +226,6 @@ void Adc::set_source(enum AdcSource src) {
 TimerRc Adc::set_frequency(uint32_t sample_rate) {
     // For each channel
     sample_rate *= this->nchannels;
-    // 2x oversampling
-    sample_rate += sample_rate;
 
     TimerConfig host_cfg(F_CPU, sample_rate, Skew::High);
     TimerRc rc = activate_t1(host_cfg);
