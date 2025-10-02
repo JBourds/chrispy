@@ -8,17 +8,6 @@
 #define SIXTEEN_BIT_BIAS (UINT16_MAX >> 1)
 #define TEN_TO_SIXTEEN_BIT(x) ((x << 6) - SIXTEEN_BIT_BIAS)
 
-// Buffer 1 is full and ready to be emptied
-#define BUF1FULL 0b1
-// Buffer 2 is full and ready to be emptied
-#define BUF2FULL 0b10
-// Only an error if both buffers are full
-#define EFULL (BUF1FULL | BUF2FULL)
-// Error encountered activating the channel
-#define ECHANNEL 0b100
-// Signal that this is the second sample
-#define ESECOND 0b10000
-
 // Bit masks
 #define MUX_MASK 0b11111
 #define SOURCE_MASK 0b111
@@ -64,32 +53,28 @@ static uint8_t prescaler_mask(pre_t val) {
 }
 
 static struct AdcFrame {
-    // Flags used to communicate state of sampling
-    volatile uint8_t eflags;
-    // Bit resolution being used for sampling
-    BitResolution res;
-    // Array of channels being swapped betwee.
-    Channel* channels;
-    // Length of `channels` array
-    size_t nchannels;
-    // Current channel index
+    // Current pointers
     volatile size_t ch_index;
+    volatile size_t sample_index;
+
+    // Flags with frame state
+    volatile bool using_buf_1;
+    volatile bool buf1full;
+    volatile bool buf2full;
+    volatile bool ch_error;
+
+    // Accounting info/frame setup
     // Double buffers being swapped between
     uint8_t* buf1;
     uint8_t* buf2;
-    // Number of bytes in each buffer (guaranteed to be an increment of the
-    // number of bytes needed per sample)
     size_t buf_sz;
-    // Current sample index in the active buffer
-    volatile size_t sample_index;
-    // Accounting information on # samples collected
+
+    Channel* channels;
+    size_t nchannels;
+
     volatile uint32_t collected;
-    // Cached last sample to easily average new samples against for oversampling
-    uint16_t last_sample;
-    // Flag to indicate what the last buffer written to was
-    bool use_buf_1;
-    // Is the frame currently in use?
     bool active;
+    BitResolution res;
 } FRAME;
 
 static int8_t init_frame(BitResolution res, uint8_t nchannels,
@@ -105,6 +90,7 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
     FRAME.buf_sz = samples_per_buf * bytes_per_sample;
     FRAME.buf1 = buf;
     FRAME.buf2 = buf + FRAME.buf_sz;
+    FRAME.using_buf_1 = true;
     FRAME.active = true;
     return 0;
 }
@@ -128,7 +114,12 @@ static inline bool activate(Channel& ch) {
 static inline void increment_sample() {
     ++FRAME.collected;
     if (FRAME.sample_index == FRAME.buf_sz) {
-        FRAME.eflags |= (FRAME.use_buf_1 ? BUF1FULL : BUF2FULL);
+        if (FRAME.using_buf_1) {
+            FRAME.buf1full = true;
+        } else {
+            FRAME.buf2full = true;
+        }
+        FRAME.using_buf_1 = !FRAME.using_buf_1;
         FRAME.sample_index = 0;
     }
 }
@@ -141,7 +132,7 @@ static inline void swap_channels() {
             FRAME.ch_index = 0;
         }
         if (!activate(FRAME.channels[FRAME.ch_index])) {
-            FRAME.eflags |= ECHANNEL;
+            FRAME.ch_error = true;
         }
     }
 }
@@ -169,22 +160,16 @@ int8_t Channel::mux_mask() {
     }
 }
 
-/**
- * ISR called whenever a match happens on line B.
- * - Double buffered approach
- * - 2x oversampled by taking average of new sample with last.
- */
 ISR(ADC_vect) {
     TIFR1 = UINT8_MAX;
     if (!FRAME.active) {
         return;
-    } else if ((FRAME.eflags & EFULL) == EFULL) {
+    } else if (FRAME.buf1full && FRAME.buf2full) {
+        Serial.println('F');
         return;
     }
 
-    FRAME.use_buf_1 = !(FRAME.eflags & BUF1FULL);
-    uint8_t* buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
-
+    uint8_t* buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
     if (FRAME.res == BitResolution::Eight) {
         buf[FRAME.sample_index++] = ADCH;
         increment_sample();
@@ -298,7 +283,7 @@ int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz) {
     if (FRAME.sample_index == 0) {
         return -2;
     }
-    *buf = FRAME.use_buf_1 ? FRAME.buf1 : FRAME.buf2;
+    *buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
     sz = FRAME.sample_index;
     FRAME.sample_index = 0;
     return 0;
@@ -309,24 +294,20 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
         return -1;
     }
     if (*buf == nullptr) {
-        if (FRAME.eflags & BUF1FULL) {
+        if (FRAME.buf1full) {
             *buf = FRAME.buf1;
-        } else if (FRAME.eflags & BUF2FULL) {
+        } else if (FRAME.buf2full) {
             *buf = FRAME.buf2;
         } else {
             return -2;
         }
     } else {
-        if (*buf == FRAME.buf1 && FRAME.eflags & BUF1FULL) {
-            cli();
-            FRAME.eflags ^= BUF1FULL;
-            sei();
-            *buf = FRAME.eflags & BUF2FULL ? FRAME.buf2 : nullptr;
-        } else if (*buf == FRAME.buf2 && FRAME.eflags & BUF1FULL) {
-            cli();
-            FRAME.eflags ^= BUF2FULL;
-            sei();
-            *buf = FRAME.eflags & BUF1FULL ? FRAME.buf1 : nullptr;
+        if (*buf == FRAME.buf1 && FRAME.buf1full) {
+            FRAME.buf1full = false;
+            *buf = FRAME.buf2full ? FRAME.buf2 : nullptr;
+        } else if (*buf == FRAME.buf2 && FRAME.buf2full) {
+            FRAME.buf2full = false;
+            *buf = FRAME.buf1full ? FRAME.buf1 : nullptr;
         } else {
             return -3;
         }
