@@ -248,6 +248,7 @@ int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     *buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
     sz = FRAME.sample_index & ~(window_sz_bytes - 1);
     ch_index = DRAIN_CH_INDEX;
+    *buf += sz * ch_index;
     increment_drain_index();
 
     // We have read from every channel and wrapped around.
