@@ -11,19 +11,31 @@
 #define MIC2_PIN A4
 #define MIC2_POWER 26
 #define POWER_5V 5
-#define CS_PIN 12
+#define POWER_3V 3
+#define SD_CS_PIN 12
 #define SD_EN 4
 #define RESOLUTION BitResolution::Eight
-#define SAMPLE_RATE 24000ul
+#define SAMPLE_RATE 12000ul
 
 // Recording
 #define DURATION_SEC 5ul
-#define BUF_SZ 4096
+#define BUF_SZ 2048
 uint8_t buf[BUF_SZ] = {0};
 uint32_t deadline = 0;
 
+// Max SPI rate for AVR is 10 MHz for F_CPU 20 MHz, 8 MHz for F_CPU 16 MHz.
+#define SPI_CLOCK SD_SCK_MHZ(F_CPU / 2)
+
+// Select fastest interface.
+#if ENABLE_DEDICATED_SPI
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, DEDICATED_SPI, SPI_CLOCK)
+#else
+#define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
+#endif
+
 SdFat SD;
 SdFile REC;
+const char* FILENAME = "adc_rec.wav";
 #define NUM_SAMPLES (SAMPLE_RATE * DURATION_SEC)
 
 void setup() {
@@ -33,35 +45,34 @@ void setup() {
     }
     delay(500);
 
-    pinMode(MIC1_POWER, OUTPUT);
-    pinMode(MIC2_POWER, OUTPUT);
     pinMode(POWER_5V, OUTPUT);
+    pinMode(POWER_3V, OUTPUT);
     pinMode(SD_EN, OUTPUT);
 
-    pinMode(MIC1_PIN, INPUT);
-    pinMode(MIC2_PIN, INPUT);
-
     digitalWrite(SD_EN, HIGH);
-    digitalWrite(MIC1_POWER, LOW);
     digitalWrite(POWER_5V, HIGH);
+    digitalWrite(POWER_3V, LOW);
 
-    if (!SD.begin(CS_PIN)) {
+    if (!SD.begin(SD_CONFIG)) {
         Serial.println("SD init failed!");
         while (true) {
         }
     }
-    if (!REC.open("adc_rec.wav", O_TRUNC | O_WRITE | O_CREAT)) {
+    if (!REC.open(FILENAME, O_TRUNC | O_WRITE | O_CREAT)) {
         Serial.println("Failed to open recording file.");
-        while (true) {
-        }
-    }
-    if (!REC.preAllocate(SAMPLE_RATE * DURATION_SEC + sizeof(WavHeader))) {
-        Serial.println("Failed to preallocate recording space.");
         while (true) {
         }
     }
 
     Serial.println("Initialized");
+}
+
+void done() {
+    if (!REC.close()) {
+        Serial.println("Error closing recording file.");
+    }
+    while (true) {
+    }
 }
 
 void loop() {
@@ -70,43 +81,57 @@ void loop() {
         {.pin = MIC1_PIN, .power = MIC1_POWER},
         {.pin = MIC2_PIN, .power = MIC2_POWER},
     };
+    for (size_t i = 0; i < nchannels; ++i) {
+        pinMode(channels[i].power, OUTPUT);
+        digitalWrite(channels[i].power, LOW);
+        pinMode(channels[i].pin, INPUT);
+    }
+
     Adc adc(nchannels, channels, buf, BUF_SZ);
     WavHeader hdr;
     uint8_t* tmp_buf = nullptr;
     size_t sz = 0;
+    size_t ch_index = 0;
     uint32_t deadline;
     uint32_t ncollected;
     uint32_t sample_rate;
 
     if (REC.write(&hdr, sizeof(hdr)) != sizeof(hdr)) {
         Serial.println("Error writing out placeholder header bytes.");
-        goto done;
+        done();
     }
     if (adc.start(RESOLUTION, SAMPLE_RATE) != 0) {
         Serial.println("Error starting ADC");
-        goto done;
+        done();
     }
     deadline = millis() + DURATION_SEC * 1000;
     while (millis() < deadline) {
-        if (adc.swap_buffer(&tmp_buf, sz) == 0) {
+        if (adc.swap_buffer(&tmp_buf, sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
                 continue;
             }
             uint32_t t0 = micros();
             size_t nbytes = REC.write(tmp_buf, sz);
             Serial.println(micros() - t0);
+            Serial.print("0x");
+            Serial.print((size_t)tmp_buf, HEX);
+            Serial.print(", ");
+            Serial.print(sz);
+            Serial.print(", ");
+            Serial.println(ch_index);
             if (nbytes != sz) {
                 Serial.println("Error writing to file!");
                 Serial.print("Expected ");
                 Serial.println(sz);
                 Serial.print("Got ");
                 Serial.println(nbytes);
-                goto done;
+                adc.stop();
+                done();
             }
         }
     }
     ncollected = adc.stop();
-    while (adc.drain_buffer(&tmp_buf, sz) == 0) {
+    while (adc.drain_buffer(&tmp_buf, sz, ch_index) == 0) {
         Serial.print("Draining ");
         Serial.print(sz);
         Serial.println(" more samples");
@@ -120,7 +145,7 @@ void loop() {
             Serial.println(sz);
             Serial.print("Got ");
             Serial.println(nbytes);
-            goto done;
+            done();
         }
     }
 
@@ -138,13 +163,7 @@ void loop() {
         Serial.println(
             "Error shrinking file to used size and writing out filled in wav "
             "header.");
-        goto done;
+        done();
     }
-
-done:
-    if (!REC.close()) {
-        Serial.println("Error closing recording file.");
-    }
-    while (true) {
-    }
+    done();
 }
