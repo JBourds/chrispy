@@ -5,8 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define SIXTEEN_BIT_BIAS (UINT16_MAX >> 1)
-#define TEN_TO_SIXTEEN_BIT(x) ((x << 6) - SIXTEEN_BIT_BIAS)
+#define TEN_BIT_BIAS 0x1FF
+#define TEN_TO_SIXTEEN_BIT(x) (((x) - TEN_BIT_BIAS) << 6)
 
 // Bit masks
 #define MUX_MASK 0b11111
