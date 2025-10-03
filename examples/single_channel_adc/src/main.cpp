@@ -65,13 +65,16 @@ void setup() {
         while (true) {
         }
     }
-    if (!REC.preAllocate(SAMPLE_RATE * DURATION_SEC + sizeof(WavHeader))) {
-        Serial.println("Failed to preallocate recording space.");
-        while (true) {
-        }
-    }
 
     Serial.println("Initialized");
+}
+
+void done() {
+    if (!REC.close()) {
+        Serial.println("Error closing recording file.");
+    }
+    while (true) {
+    }
 }
 
 void loop() {
@@ -88,11 +91,11 @@ void loop() {
 
     if (REC.write(&hdr, sizeof(hdr)) != sizeof(hdr)) {
         Serial.println("Error writing out placeholder header bytes.");
-        goto done;
+        done();
     }
     if (adc.start(RESOLUTION, SAMPLE_RATE) != 0) {
         Serial.println("Error starting ADC");
-        goto done;
+        done();
     }
     deadline = millis() + DURATION_SEC * 1000;
     while (millis() < deadline) {
@@ -109,7 +112,7 @@ void loop() {
                 Serial.println(sz);
                 Serial.print("Got ");
                 Serial.println(nbytes);
-                goto done;
+                done();
             }
         }
     }
@@ -128,7 +131,7 @@ void loop() {
             Serial.println(sz);
             Serial.print("Got ");
             Serial.println(nbytes);
-            goto done;
+            done();
         }
     }
 
@@ -146,13 +149,7 @@ void loop() {
         Serial.println(
             "Error shrinking file to used size and writing out filled in wav "
             "header.");
-        goto done;
+        done();
     }
-
-done:
-    if (!REC.close()) {
-        Serial.println("Error closing recording file.");
-    }
-    while (true) {
-    }
+    done();
 }
