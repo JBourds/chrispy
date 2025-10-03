@@ -73,6 +73,8 @@ static struct AdcFrame {
     size_t max_ch_index;
     // Number of samples to collect for a channel before swapping to the next
     size_t ch_window_sz;
+    // `ch_window_sz` - 1. Cached result to save subtractions in ISR.
+    size_t ch_window_mask;
     // Number of bytes per channel buffer
     size_t ch_buf_sz;
 
@@ -92,6 +94,8 @@ ISR(ADC_vect) {
     if (!FRAME.active) {
         return;
     } else if (FRAME.buf1full && FRAME.buf2full) {
+        return;
+    } else if (FRAME.ch_error) {
         return;
     }
 
@@ -122,17 +126,19 @@ ISR(ADC_vect) {
     }
 
     // 5. Handle swapping channels
-    if (FRAME.max_ch_index > 0 && FRAME.sample_index & FRAME.ch_window_sz) {
+    if (FRAME.max_ch_index > 0 && FRAME.sample_index > 0 &&
+        (FRAME.sample_index & FRAME.ch_window_mask) == 0) {
         if (FRAME.ch_index == FRAME.max_ch_index) {
             FRAME.ch_index = 0;
+        } else {
+            ++FRAME.ch_index;
+            FRAME.sample_index -= FRAME.ch_window_sz;
         }
-        ++FRAME.ch_index;
         if (!activate_adc_channel(FRAME.channels[FRAME.ch_index])) {
             FRAME.ch_error = true;
         }
         uint8_t* base = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
         FRAME.ch_buffer = base + FRAME.ch_index * FRAME.ch_buf_sz;
-        FRAME.sample_index -= FRAME.ch_window_sz;
     }
 }
 
@@ -360,6 +366,7 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
     FRAME.channels = channels;
     FRAME.max_ch_index = nchannels - 1;
     FRAME.ch_window_sz = ch_window_sz;
+    FRAME.ch_window_mask = ch_window_mask;
     FRAME.ch_buffer = FRAME.buf1;
     FRAME.ch_buf_sz = samples_per_ch_buf * bytes_per_sample;
 
