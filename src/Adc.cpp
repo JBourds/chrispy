@@ -34,39 +34,82 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
                          Channel* channels, size_t ch_window_sz, uint8_t* buf,
                          size_t buf_sz);
 static inline bool activate_adc_channel(Channel& ch);
+static bool increment_drain_index();
 
 static const size_t NPRESCALERS = 7;
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
 static pre_t SCRATCH_PRESCALERS[NPRESCALERS];
 
+// Global static used when swapping/draining buffers.
+// Needs to be global so it also gets reset when resetting ISR frame.
+static size_t DRAIN_CH_INDEX = 0;
+
 static struct AdcFrame {
-    // Current pointers
+    // Currently active channel
     volatile size_t ch_index;
+    // Current sample index within the channel sub-buffer
     volatile size_t sample_index;
+    // Channel `ch_index` sub-buffer
+    volatile uint8_t* ch_buffer;
 
     // Flags with frame state
+    // "Index" into the double buffer
     volatile bool using_buf_1;
+    // Flags indicating at least one channel sub-buffer has not yet been flushed
+    // in buffer 1 or 2
     volatile bool buf1full;
     volatile bool buf2full;
+    // Flag indicating there was some error when switching between channels
     volatile bool ch_error;
 
     // Accounting info/frame setup
     // Double buffers being swapped between
     uint8_t* buf1;
     uint8_t* buf2;
-    size_t buf_sz;
 
+    // Array of channels to swap between
     Channel* channels;
-    size_t nchannels;
+    // Number of channels in the `channels` array - 1 (save subtractions)
+    size_t max_ch_index;
+    // Number of samples to collect for a channel before swapping to the next
+    size_t ch_window_sz;
+    // Number of bytes per channel buffer
+    size_t ch_buf_sz;
 
+    // Number of samples collected
     volatile uint32_t collected;
+    // Flag for whether the frame is currently in use
     bool active;
+    // Bit resolution for samples
     BitResolution res;
 } FRAME;
 
-static inline void increment_sample() {
+ISR(ADC_vect) {
+    // 1. Immediately reenable timer interrupts by writing 1s to everything
+    TIFR1 = UINT8_MAX;
+
+    // 2. Make sure this ISR can actually do work
+    if (!FRAME.active) {
+        return;
+    } else if (FRAME.buf1full && FRAME.buf2full) {
+        return;
+    }
+
+    // 3. Read sample from ADC registers
+    if (FRAME.res == BitResolution::Eight) {
+        FRAME.ch_buffer[FRAME.sample_index++] = ADCH;
+    } else {
+        uint8_t low = ADCL;
+        uint8_t high = ADCH;
+        uint16_t new_sample = TEN_TO_SIXTEEN_BIT((high << CHAR_BIT) | low);
+        FRAME.ch_buffer[FRAME.sample_index++] = new_sample & UINT8_MAX;
+        FRAME.ch_buffer[FRAME.sample_index++] = new_sample >> CHAR_BIT;
+    }
     ++FRAME.collected;
-    if (FRAME.sample_index == FRAME.buf_sz) {
+
+    // 4. Handle swapping buffers
+    if (FRAME.sample_index == FRAME.ch_buf_sz &&
+        FRAME.ch_index == FRAME.max_ch_index) {
         if (FRAME.using_buf_1) {
             FRAME.buf1full = true;
         } else {
@@ -74,44 +117,22 @@ static inline void increment_sample() {
         }
         FRAME.using_buf_1 = !FRAME.using_buf_1;
         FRAME.sample_index = 0;
+        FRAME.ch_index = 0;
+        FRAME.ch_buffer = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
     }
-}
 
-static inline void swap_channels() {
-    // Hop between channels if there are more than one
-    if (FRAME.nchannels > 1) {
-        ++FRAME.ch_index;
-        if (FRAME.ch_index == FRAME.nchannels) {
+    // 5. Handle swapping channels
+    if (FRAME.max_ch_index > 0 && FRAME.sample_index & FRAME.ch_window_sz) {
+        if (FRAME.ch_index == FRAME.max_ch_index) {
             FRAME.ch_index = 0;
         }
+        ++FRAME.ch_index;
         if (!activate_adc_channel(FRAME.channels[FRAME.ch_index])) {
             FRAME.ch_error = true;
         }
-    }
-}
-
-ISR(ADC_vect) {
-    TIFR1 = UINT8_MAX;
-    if (!FRAME.active) {
-        return;
-    } else if (FRAME.buf1full && FRAME.buf2full) {
-        Serial.println('F');
-        return;
-    }
-
-    uint8_t* buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
-    if (FRAME.res == BitResolution::Eight) {
-        buf[FRAME.sample_index++] = ADCH;
-        increment_sample();
-        swap_channels();
-    } else {
-        uint8_t low = ADCL;
-        uint8_t high = ADCH;
-        uint16_t new_sample = TEN_TO_SIXTEEN_BIT((high << CHAR_BIT) | low);
-        buf[FRAME.sample_index++] = new_sample & UINT8_MAX;
-        buf[FRAME.sample_index++] = new_sample >> CHAR_BIT;
-        increment_sample();
-        swap_channels();
+        uint8_t* base = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
+        FRAME.ch_buffer = base + FRAME.ch_index * FRAME.ch_buf_sz;
+        FRAME.sample_index -= FRAME.ch_window_sz;
     }
 }
 
@@ -156,9 +177,7 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
     sei();
 
     clk_t adc_rate = ADC_CYCLES_PER_SAMPLE * sample_rate;
-    // It takes twice as long for each sample when swapping channels
-    // since every conversion is the "first" conversion. If there is only one
-    // channel, we don't ever need to switch though.
+    // Account for the portion of the time spent switching to the next channel
     if (this->nchannels > 1) {
         adc_rate += adc_rate;
     }
@@ -204,19 +223,33 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate,
 int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (buf == nullptr) {
         return -1;
+    } else if (FRAME.active) {
+        return -2;
     }
+
     // Drain full buffers first
     int8_t rc = swap_buffer(buf, sz, ch_index);
     if (rc == 0) {
         return rc;
     }
-    // Drain in-progress buffer if one was being written
-    if (FRAME.sample_index == 0) {
-        return -2;
+
+    // Only drain samples if we have any full windows to check
+    size_t bytes_per_sample = FRAME.res == BitResolution::Eight ? 1 : 2;
+    size_t window_sz_bytes = FRAME.ch_window_sz * bytes_per_sample;
+    if (FRAME.sample_index < window_sz_bytes) {
+        return -3;
     }
     *buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
-    sz = FRAME.sample_index;
-    FRAME.sample_index = 0;
+    sz = FRAME.sample_index & ~(window_sz_bytes - 1);
+    ch_index = DRAIN_CH_INDEX;
+    increment_drain_index();
+
+    // We have read from every channel and wrapped around.
+    // Update index so this function cannot be called until new data exists.
+    if (DRAIN_CH_INDEX == 0) {
+        FRAME.sample_index = 0;
+    }
+
     return 0;
 }
 
@@ -224,6 +257,8 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (buf == nullptr) {
         return -1;
     }
+
+    // Get the base of the buffer first
     if (*buf == nullptr) {
         if (FRAME.buf1full) {
             *buf = FRAME.buf1;
@@ -243,7 +278,12 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
             return -3;
         }
     }
-    sz = FRAME.buf_sz;
+    // Add offset to get the channel sub-buffer
+    sz = FRAME.ch_buf_sz;
+    ch_index = DRAIN_CH_INDEX;
+    *buf += ch_index * sz;
+    increment_drain_index();
+
     return 0;
 }
 
@@ -285,19 +325,49 @@ int8_t Channel::mux_mask() {
 static int8_t init_frame(BitResolution res, uint8_t nchannels,
                          Channel* channels, size_t ch_window_sz, uint8_t* buf,
                          size_t buf_sz) {
+    size_t ch_window_mask = ch_window_sz - 1;
+    if (nchannels < 1) {
+        return -1;
+    } else if (ch_window_sz == 0) {
+        return -2;
+    } else if (ch_window_sz & ch_window_mask) {
+        // Channel window size needs to be a power of 2
+        return -3;
+    } else if (buf_sz < MIN_BUF_SZ_PER_CHANNEL * nchannels) {
+        return -4;
+    }
+
     const size_t nbuffers = 2;
-    memset(&FRAME, 0, sizeof(FRAME));
-    // Slice up the buffer into a double buffer
     size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
     size_t samples_per_buf = buf_sz / (nbuffers * bytes_per_sample);
-    FRAME.channels = channels;
-    FRAME.nchannels = nchannels;
+    size_t samples_per_ch_buf = samples_per_buf / nchannels;
+    // Shrink channel buffers if needed to get increment of window size
+    size_t window_increment_delta = samples_per_ch_buf & ch_window_mask;
+    if (window_increment_delta == samples_per_ch_buf) {
+        return -5;
+    }
+    samples_per_ch_buf -= window_increment_delta;
+
+    // Set `FRAME` values
+    memset(&FRAME, 0, sizeof(FRAME));
+
     FRAME.res = res;
-    FRAME.buf_sz = samples_per_buf * bytes_per_sample;
+
+    // Slice up the buffer into a double buffer
     FRAME.buf1 = buf;
-    FRAME.buf2 = buf + FRAME.buf_sz;
+    FRAME.buf2 = buf + samples_per_buf * bytes_per_sample;
+
+    FRAME.channels = channels;
+    FRAME.max_ch_index = nchannels - 1;
+    FRAME.ch_window_sz = ch_window_sz;
+    FRAME.ch_buffer = FRAME.buf1;
+    FRAME.ch_buf_sz = samples_per_ch_buf * bytes_per_sample;
+
     FRAME.using_buf_1 = true;
     FRAME.active = true;
+
+    DRAIN_CH_INDEX = 0;
+
     return 0;
 }
 
@@ -315,6 +385,17 @@ static inline bool activate_adc_channel(Channel& ch) {
         ADCSRB &= ~(1 << MUX5);
     }
     return true;
+}
+
+static bool increment_drain_index() {
+    if (FRAME.max_ch_index > 0) {
+        ++DRAIN_CH_INDEX;
+        if (DRAIN_CH_INDEX == FRAME.max_ch_index) {
+            DRAIN_CH_INDEX = 0;
+        }
+        return true;
+    }
+    return false;
 }
 
 static uint8_t prescaler_mask(pre_t val) {
