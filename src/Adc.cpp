@@ -25,32 +25,19 @@
 #define DIV_2 0b001
 #define DIV_2_2 0b000
 
+#define MIN_BUF_SZ_PER_CHANNEL 512
+
 #define ADC_CYCLES_PER_SAMPLE 13.5
+
+static uint8_t prescaler_mask(pre_t val);
+static int8_t init_frame(BitResolution res, uint8_t nchannels,
+                         Channel* channels, size_t ch_window_sz, uint8_t* buf,
+                         size_t buf_sz);
+static inline bool activate_adc_channel(Channel& ch);
 
 static const size_t NPRESCALERS = 7;
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
 static pre_t SCRATCH_PRESCALERS[NPRESCALERS];
-
-static uint8_t prescaler_mask(pre_t val) {
-    switch (val) {
-        case 2:
-            return DIV_2;
-        case 4:
-            return DIV_4;
-        case 8:
-            return DIV_8;
-        case 16:
-            return DIV_16;
-        case 32:
-            return DIV_32;
-        case 64:
-            return DIV_64;
-        case 128:
-            return DIV_128;
-        default:
-            return 0;
-    }
-}
 
 static struct AdcFrame {
     // Current pointers
@@ -77,40 +64,6 @@ static struct AdcFrame {
     BitResolution res;
 } FRAME;
 
-static int8_t init_frame(BitResolution res, uint8_t nchannels,
-                         Channel* channels, uint8_t* buf, size_t sz) {
-    const size_t nbuffers = 2;
-    memset(&FRAME, 0, sizeof(FRAME));
-    // Slice up the buffer into a double buffer
-    size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
-    size_t samples_per_buf = sz / (nbuffers * bytes_per_sample);
-    FRAME.channels = channels;
-    FRAME.nchannels = nchannels;
-    FRAME.res = res;
-    FRAME.buf_sz = samples_per_buf * bytes_per_sample;
-    FRAME.buf1 = buf;
-    FRAME.buf2 = buf + FRAME.buf_sz;
-    FRAME.using_buf_1 = true;
-    FRAME.active = true;
-    return 0;
-}
-
-static inline bool activate(Channel& ch) {
-    int8_t mask = ch.mux_mask();
-    if (mask < 0) {
-        return false;
-    }
-    ADMUX &= ~MUX_MASK;
-    ADMUX |= mask;
-    // If the mask comes from a higher channel (>7) set MUX5
-    if (mask & HIGH_CHANNEL_MASK) {
-        ADCSRB |= (1 << MUX5);
-    } else {
-        ADCSRB &= ~(1 << MUX5);
-    }
-    return true;
-}
-
 static inline void increment_sample() {
     ++FRAME.collected;
     if (FRAME.sample_index == FRAME.buf_sz) {
@@ -131,32 +84,9 @@ static inline void swap_channels() {
         if (FRAME.ch_index == FRAME.nchannels) {
             FRAME.ch_index = 0;
         }
-        if (!activate(FRAME.channels[FRAME.ch_index])) {
+        if (!activate_adc_channel(FRAME.channels[FRAME.ch_index])) {
             FRAME.ch_error = true;
         }
-    }
-}
-
-int8_t Channel::mux_mask() {
-    switch (pin) {
-        case A0:
-            return 0b000;
-        case A1:
-            return 0b001;
-        case A2:
-            return 0b010;
-        case A3:
-            return 0b011;
-        case A4:
-            return 0b100;
-        case A5:
-            return 0b101;
-        case A6:
-            return 0b110;
-        case A7:
-            return 0b111;
-        default:
-            return -1;
     }
 }
 
@@ -244,8 +174,9 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
     return rc;
 }
 
-int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
-    int8_t rc = init_frame(res, nchannels, channels, buf, sz);
+int8_t Adc::start(BitResolution res, uint32_t sample_rate,
+                  size_t ch_window_sz) {
+    int8_t rc = init_frame(res, nchannels, channels, ch_window_sz, buf, sz);
     if (rc) {
         return rc;
     }
@@ -257,7 +188,7 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     // 5V analog reference
     ADMUX = (1 << REFS0);
     // Start with first channel
-    if (!activate(channels[0])) {
+    if (!activate_adc_channel(channels[0])) {
         return 1;
     }
     // Left adjust result so we can just read from ADCH in ISR
@@ -270,12 +201,12 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate) {
     return 0;
 }
 
-int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz) {
+int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (buf == nullptr) {
         return -1;
     }
     // Drain full buffers first
-    int8_t rc = swap_buffer(buf, sz);
+    int8_t rc = swap_buffer(buf, sz, ch_index);
     if (rc == 0) {
         return rc;
     }
@@ -289,7 +220,7 @@ int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz) {
     return 0;
 }
 
-int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz) {
+int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (buf == nullptr) {
         return -1;
     }
@@ -326,4 +257,83 @@ uint32_t Adc::stop() {
     uint32_t collected = FRAME.collected;
     FRAME.active = false;
     return collected;
+}
+
+int8_t Channel::mux_mask() {
+    switch (pin) {
+        case A0:
+            return 0b000;
+        case A1:
+            return 0b001;
+        case A2:
+            return 0b010;
+        case A3:
+            return 0b011;
+        case A4:
+            return 0b100;
+        case A5:
+            return 0b101;
+        case A6:
+            return 0b110;
+        case A7:
+            return 0b111;
+        default:
+            return -1;
+    }
+}
+
+static int8_t init_frame(BitResolution res, uint8_t nchannels,
+                         Channel* channels, size_t ch_window_sz, uint8_t* buf,
+                         size_t buf_sz) {
+    const size_t nbuffers = 2;
+    memset(&FRAME, 0, sizeof(FRAME));
+    // Slice up the buffer into a double buffer
+    size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
+    size_t samples_per_buf = buf_sz / (nbuffers * bytes_per_sample);
+    FRAME.channels = channels;
+    FRAME.nchannels = nchannels;
+    FRAME.res = res;
+    FRAME.buf_sz = samples_per_buf * bytes_per_sample;
+    FRAME.buf1 = buf;
+    FRAME.buf2 = buf + FRAME.buf_sz;
+    FRAME.using_buf_1 = true;
+    FRAME.active = true;
+    return 0;
+}
+
+static inline bool activate_adc_channel(Channel& ch) {
+    int8_t mask = ch.mux_mask();
+    if (mask < 0) {
+        return false;
+    }
+    ADMUX &= ~MUX_MASK;
+    ADMUX |= mask;
+    // If the mask comes from a higher channel (>7) set MUX5
+    if (mask & HIGH_CHANNEL_MASK) {
+        ADCSRB |= (1 << MUX5);
+    } else {
+        ADCSRB &= ~(1 << MUX5);
+    }
+    return true;
+}
+
+static uint8_t prescaler_mask(pre_t val) {
+    switch (val) {
+        case 2:
+            return DIV_2;
+        case 4:
+            return DIV_4;
+        case 8:
+            return DIV_8;
+        case 16:
+            return DIV_16;
+        case 32:
+            return DIV_32;
+        case 64:
+            return DIV_64;
+        case 128:
+            return DIV_128;
+        default:
+            return 0;
+    }
 }

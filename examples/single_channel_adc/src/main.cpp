@@ -17,7 +17,7 @@
 
 // Recording
 #define DURATION_SEC 5ul
-#define BUF_SZ 4096
+#define BUF_SZ 1024
 uint8_t buf[BUF_SZ] = {0};
 uint32_t deadline = 0;
 
@@ -81,6 +81,7 @@ void loop() {
     WavHeader hdr;
     uint8_t* tmp_buf = nullptr;
     size_t sz = 0;
+    size_t ch_index = 0;
     uint32_t deadline;
     uint32_t ncollected;
     uint32_t sample_rate;
@@ -95,7 +96,7 @@ void loop() {
     }
     deadline = millis() + DURATION_SEC * 1000;
     while (millis() < deadline) {
-        if (adc.swap_buffer(&tmp_buf, sz) == 0) {
+        if (adc.swap_buffer(&tmp_buf, sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
                 continue;
             }
@@ -113,7 +114,7 @@ void loop() {
         }
     }
     ncollected = adc.stop();
-    while (adc.drain_buffer(&tmp_buf, sz) == 0) {
+    while (adc.drain_buffer(&tmp_buf, sz, ch_index) == 0) {
         Serial.print("Draining ");
         Serial.print(sz);
         Serial.println(" more samples");
