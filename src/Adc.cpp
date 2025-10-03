@@ -397,9 +397,10 @@ static inline bool activate_adc_channel(Channel& ch) {
 
 static bool increment_drain_index() {
     if (FRAME.max_ch_index > 0) {
-        ++DRAIN_CH_INDEX;
         if (DRAIN_CH_INDEX == FRAME.max_ch_index) {
             DRAIN_CH_INDEX = 0;
+        } else {
+            ++DRAIN_CH_INDEX;
         }
         return true;
     }
