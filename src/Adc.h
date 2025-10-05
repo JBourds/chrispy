@@ -93,7 +93,7 @@ struct Adc {
      * @param sz: Out-parameter for the number of bytes in the buffer.
      * @param ch_index: Out-paramter for the channel index this data is from.
      *
-     * @returns (int8_t): 0 if success. Nonzero otherwise.
+     * @returns (int8_t): 0 if a new buffer is returned. Nonzero otherwise.
      */
     int8_t swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index);
 

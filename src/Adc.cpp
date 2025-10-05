@@ -34,7 +34,7 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
                          Channel* channels, size_t ch_window_sz, uint8_t* buf,
                          size_t buf_sz);
 static inline bool activate_adc_channel(Channel& ch);
-static bool increment_drain_index();
+static bool increment_channel_buffer_index();
 
 static const size_t NPRESCALERS = 7;
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
@@ -42,7 +42,7 @@ static pre_t SCRATCH_PRESCALERS[NPRESCALERS];
 
 // Global static used when swapping/draining buffers.
 // Needs to be global so it also gets reset when resetting ISR frame.
-static size_t DRAIN_CH_INDEX = 0;
+static size_t CH_BUFFER_INDEX = 0;
 
 static struct AdcFrame {
     // Currently active channel
@@ -86,20 +86,7 @@ static struct AdcFrame {
     BitResolution res;
 } FRAME;
 
-ISR(ADC_vect) {
-    // 1. Immediately reenable timer interrupts by writing 1s to everything
-    TIFR1 = UINT8_MAX;
-
-    // 2. Make sure this ISR can actually do work
-    if (!FRAME.active) {
-        return;
-    } else if (FRAME.buf1full && FRAME.buf2full) {
-        return;
-    } else if (FRAME.ch_error) {
-        return;
-    }
-
-    // 3. Read sample from ADC registers
+static inline void read_sample() {
     if (FRAME.res == BitResolution::Eight) {
         FRAME.ch_buffer[FRAME.sample_index++] = ADCH;
     } else {
@@ -110,8 +97,9 @@ ISR(ADC_vect) {
         FRAME.ch_buffer[FRAME.sample_index++] = new_sample >> CHAR_BIT;
     }
     ++FRAME.collected;
+}
 
-    // 4. Handle swapping buffers
+static inline void try_swap_buffer() {
     if (FRAME.sample_index == FRAME.ch_buf_sz &&
         FRAME.ch_index == FRAME.max_ch_index) {
         if (FRAME.using_buf_1) {
@@ -124,8 +112,9 @@ ISR(ADC_vect) {
         FRAME.ch_index = 0;
         FRAME.ch_buffer = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
     }
+}
 
-    // 5. Handle swapping channels
+static inline void try_swap_channel() {
     if (FRAME.max_ch_index > 0 && FRAME.sample_index > 0 &&
         (FRAME.sample_index & FRAME.ch_window_mask) == 0) {
         if (FRAME.ch_index == FRAME.max_ch_index) {
@@ -140,6 +129,20 @@ ISR(ADC_vect) {
         uint8_t* base = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
         FRAME.ch_buffer = base + FRAME.ch_index * FRAME.ch_buf_sz;
     }
+}
+
+ISR(ADC_vect) {
+    TIFR1 = UINT8_MAX;
+    if (!FRAME.active) {
+        return;
+    } else if (FRAME.buf1full && FRAME.buf2full) {
+        return;
+    } else if (FRAME.ch_error) {
+        return;
+    }
+    read_sample();
+    try_swap_buffer();
+    try_swap_channel();
 }
 
 void Adc::on() {
@@ -245,15 +248,14 @@ int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (FRAME.sample_index < window_sz_bytes) {
         return -3;
     }
-    *buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
-    sz = FRAME.sample_index & ~(window_sz_bytes - 1);
-    ch_index = DRAIN_CH_INDEX;
-    *buf += sz * ch_index;
-    increment_drain_index();
 
-    // We have read from every channel and wrapped around.
-    // Update index so this function cannot be called until new data exists.
-    if (DRAIN_CH_INDEX == 0) {
+    sz = FRAME.sample_index & ~(window_sz_bytes - 1);
+    ch_index = CH_BUFFER_INDEX;
+    *buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
+    *buf += sz * ch_index;
+
+    // Once this wraps around, reset the sample index so subsequent calls fail.
+    if (increment_channel_buffer_index()) {
         FRAME.sample_index = 0;
     }
 
@@ -265,32 +267,43 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
         return -1;
     }
 
-    // Get the base of the buffer first
     if (*buf == nullptr) {
-        if (FRAME.buf1full) {
+        if (FRAME.buf1full && FRAME.buf2full) {
+            // If both are full, the flag will indicate the next buffer to
+            // be written while is also the oldest uncleared one
+            *buf = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
+        } else if (FRAME.buf1full) {
             *buf = FRAME.buf1;
         } else if (FRAME.buf2full) {
             *buf = FRAME.buf2;
         } else {
             return -2;
         }
-    } else {
-        if (*buf == FRAME.buf1 && FRAME.buf1full) {
+        ch_index = CH_BUFFER_INDEX;
+        sz = FRAME.ch_buf_sz;
+        return 0;
+    }
+
+    increment_channel_buffer_index();
+    ch_index = CH_BUFFER_INDEX;
+    sz = FRAME.ch_buf_sz;
+    if (CH_BUFFER_INDEX == 0) {
+        // Wraparound- Finished all the channel buffers
+        bool from_buf_1 = *buf < FRAME.buf2;
+        if (from_buf_1) {
             FRAME.buf1full = false;
             *buf = FRAME.buf2full ? FRAME.buf2 : nullptr;
-        } else if (*buf == FRAME.buf2 && FRAME.buf2full) {
+        } else {
             FRAME.buf2full = false;
             *buf = FRAME.buf1full ? FRAME.buf1 : nullptr;
-        } else {
+        }
+        if (*buf == nullptr) {
             return -3;
         }
+    } else {
+        // Next channel buffer
+        *buf += FRAME.ch_buf_sz;
     }
-    // Add offset to get the channel sub-buffer
-    sz = FRAME.ch_buf_sz;
-    ch_index = DRAIN_CH_INDEX;
-    *buf += ch_index * sz;
-    increment_drain_index();
-
     return 0;
 }
 
@@ -374,7 +387,7 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
     FRAME.using_buf_1 = true;
     FRAME.active = true;
 
-    DRAIN_CH_INDEX = 0;
+    CH_BUFFER_INDEX = 0;
 
     return 0;
 }
@@ -395,16 +408,19 @@ static inline bool activate_adc_channel(Channel& ch) {
     return true;
 }
 
-static bool increment_drain_index() {
-    if (FRAME.max_ch_index > 0) {
-        if (DRAIN_CH_INDEX == FRAME.max_ch_index) {
-            DRAIN_CH_INDEX = 0;
-        } else {
-            ++DRAIN_CH_INDEX;
-        }
+/**
+ * Perform wrapping index addition.
+ * @returns (bool): True when last channel buffer was encoutnered.
+ * False otherwise.
+ */
+static inline bool increment_channel_buffer_index() {
+    if (CH_BUFFER_INDEX == FRAME.max_ch_index) {
+        CH_BUFFER_INDEX = 0;
         return true;
+    } else {
+        ++CH_BUFFER_INDEX;
+        return false;
     }
-    return false;
 }
 
 static uint8_t prescaler_mask(pre_t val) {
