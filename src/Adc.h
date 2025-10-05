@@ -72,11 +72,14 @@ struct Adc {
      * @param sample_rate: Sample rate in Hz to try and record at,
      * @param ch_window_sz: Size of each channel's window. Only checked when
      * there are multiple channels being recorded from. Defaults to 8.
+     * @param warmup_ms: Milliseconds to delay after starting ADC before
+     * ingesting samples. A small warmup helps prevent poor signal from
+     * channel switching noise.
      *
      * @returns (int8_t): Return code. 0 if all is good, negative otherwise.
      */
     int8_t start(BitResolution res, uint32_t sample_rate,
-                 size_t ch_window_sz = 8);
+                 size_t ch_window_sz = 8, uint32_t warmup_ms = 100);
 
     /**
      * Retrieve a buffer from the module belonging to a specific channel,

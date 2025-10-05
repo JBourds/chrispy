@@ -200,8 +200,8 @@ TimerRc Adc::set_frequency(uint32_t sample_rate) {
     return rc;
 }
 
-int8_t Adc::start(BitResolution res, uint32_t sample_rate,
-                  size_t ch_window_sz) {
+int8_t Adc::start(BitResolution res, uint32_t sample_rate, size_t ch_window_sz,
+                  uint32_t warmup_ms) {
     int8_t rc = init_frame(res, nchannels, channels, ch_window_sz, buf, sz);
     if (rc) {
         return rc;
@@ -221,8 +221,12 @@ int8_t Adc::start(BitResolution res, uint32_t sample_rate,
     if (res == BitResolution::Eight) {
         ADMUX |= (1 << ADLAR);
     }
+    // Slight delay to allow channels to settle
+    FRAME.active = false;
     enable_autotrigger();
     enable_interrupts();
+    delay(warmup_ms);
+    FRAME.active = true;
 
     return 0;
 }
