@@ -236,7 +236,8 @@ int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
         return -2;
     }
 
-    // Drain full buffers first
+    // Drain full buffers first. Preserve old index in case this doesn't find
+    // a full buffer but mutates global.
     int8_t rc = swap_buffer(buf, sz, ch_index);
     if (rc == 0) {
         return rc;
@@ -265,8 +266,11 @@ int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
 int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (buf == nullptr) {
         return -1;
+    } else if (!(FRAME.buf1full || FRAME.buf2full)) {
+        return -2;
     }
 
+    // Case 1) Not returning a pointer. Looking for channel 0 in full buffer.
     if (*buf == nullptr) {
         if (FRAME.buf1full && FRAME.buf2full) {
             // If both are full, the flag will indicate the next buffer to
@@ -277,18 +281,21 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
         } else if (FRAME.buf2full) {
             *buf = FRAME.buf2;
         } else {
-            return -2;
+            return -3;
         }
         ch_index = CH_BUFFER_INDEX;
         sz = FRAME.ch_buf_sz;
         return 0;
     }
 
+    // Case 2) Returning some pointer.
     increment_channel_buffer_index();
     ch_index = CH_BUFFER_INDEX;
     sz = FRAME.ch_buf_sz;
-    if (CH_BUFFER_INDEX == 0) {
-        // Wraparound- Finished all the channel buffers
+    if (ch_index == 0) {
+        // Case 2.1) Incrementing channel index wrapped around, so this was the
+        // last channel buffer. Figure out if it came from buf1 or buf2 and
+        // return it.
         bool from_buf_1 = *buf < FRAME.buf2;
         if (from_buf_1) {
             FRAME.buf1full = false;
@@ -298,10 +305,10 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
             *buf = FRAME.buf1full ? FRAME.buf1 : nullptr;
         }
         if (*buf == nullptr) {
-            return -3;
+            return -4;
         }
     } else {
-        // Next channel buffer
+        // Case 2.2) Not the last channel buffer, increment to the next one.
         *buf += FRAME.ch_buf_sz;
     }
     return 0;
