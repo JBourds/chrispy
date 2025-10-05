@@ -139,8 +139,7 @@ void loop() {
     Serial.println(sample_rate);
 
     hdr.fill(RESOLUTION, static_cast<uint32_t>(REC.fileSize()), sample_rate);
-    if (!(REC.truncate() && REC.seekSet(0) &&
-          REC.write(&hdr, sizeof(hdr)) == sizeof(hdr))) {
+    if (!(REC.seekSet(0) && REC.write(&hdr, sizeof(hdr)) == sizeof(hdr))) {
         Serial.println(
             "Error shrinking file to used size and writing out filled in wav "
             "header.");
