@@ -30,7 +30,7 @@ uint8_t BUF[BUF_SZ] = {0};
 
 SdFat SD;
 #define NCHANNELS 1
-Channel CHANNELS[NCHANNELS] = {{.pin = MIC_PIN, .power = MIC_POWER}};
+adc::Channel CHANNELS[NCHANNELS] = {{.pin = MIC_PIN, .power = MIC_POWER}};
 const char* FILENAMES[NCHANNELS] = {"adc_rec.wav"};
 
 void done() {

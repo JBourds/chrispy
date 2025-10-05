@@ -4,14 +4,12 @@
 
 #include "SdFunctions.cpp"
 
-const size_t MAX_CHANNEL_COUNT = 16;
-
 int64_t Recorder::record(const char *filenames[], BitResolution res,
                          uint32_t sample_rate, uint32_t duration_ms,
                          uint8_t *buf, size_t sz) {
     if (sd == nullptr) {
         return -1;
-    } else if (this->nchannels > MAX_CHANNEL_COUNT) {
+    } else if (this->nchannels > adc::MAX_CHANNEL_COUNT) {
         return -2;
     }
 
@@ -27,29 +25,29 @@ int64_t Recorder::record(const char *filenames[], BitResolution res,
         }
     }
 
-    Adc adc(nchannels, channels, buf, sz);
+    adc::init(nchannels, channels, buf, sz);
     uint8_t *tmp_buf = nullptr;
     size_t tmp_sz = 0;
     size_t ch_index = 0;
-    if (adc.start(res, sample_rate) != 0) {
+    if (adc::start(res, sample_rate) != 0) {
         return -4;
     }
     uint32_t deadline = millis() + duration_ms;
     while (millis() <= deadline) {
-        if (adc.swap_buffer(&tmp_buf, tmp_sz, ch_index) == 0) {
+        if (adc::swap_buffer(&tmp_buf, tmp_sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
                 continue;
             }
             size_t nwritten = files[ch_index].write(tmp_buf, tmp_sz);
             if (nwritten != tmp_sz) {
-                adc.stop();
+                adc::stop();
                 close_all(files, nchannels);
                 return -5;
             }
         }
     }
-    uint32_t ncollected = adc.stop();
-    while (adc.drain_buffer(&tmp_buf, tmp_sz, ch_index) == 0) {
+    uint32_t ncollected = adc::stop();
+    while (adc::drain_buffer(&tmp_buf, tmp_sz, ch_index) == 0) {
         if (tmp_buf == nullptr) {
             continue;
         }

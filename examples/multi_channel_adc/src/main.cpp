@@ -33,7 +33,7 @@
 uint8_t BUF[BUF_SZ] = {0};
 
 #define NCHANNELS 2
-Channel CHANNELS[] = {
+adc::Channel CHANNELS[] = {
     {.pin = MIC1_PIN, .power = MIC1_POWER},
     {.pin = MIC2_PIN, .power = MIC2_POWER},
 };
@@ -65,6 +65,10 @@ void setup() {
     if (!SD.begin(SD_CONFIG)) {
         done();
     }
+    if (!adc::init(NCHANNELS, CHANNELS, BUF, BUF_SZ)) {
+        Serial.println("ADC init failed.");
+        done();
+    }
 
     for (size_t i = 0; i < NCHANNELS; ++i) {
         pinMode(CHANNELS[i].power, OUTPUT);
@@ -81,7 +85,6 @@ void setup() {
 }
 
 void loop() {
-    Adc adc(NCHANNELS, CHANNELS, BUF, BUF_SZ);
     WavHeader hdr;
     uint8_t* tmp_buf = nullptr;
     size_t sz = 0;
@@ -93,13 +96,13 @@ void loop() {
         }
     }
 
-    if (adc.start(RESOLUTION, SAMPLE_RATE) != 0) {
+    if (adc::start(RESOLUTION, SAMPLE_RATE) != 0) {
         Serial.println("Error starting ADC");
         done();
     }
     uint32_t deadline = millis() + DURATION_SEC * 1000;
     while (millis() < deadline) {
-        if (adc.swap_buffer(&tmp_buf, sz, ch_index) == 0) {
+        if (adc::swap_buffer(&tmp_buf, sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
                 continue;
             }
@@ -110,13 +113,13 @@ void loop() {
                 Serial.println(sz);
                 Serial.print("Got ");
                 Serial.println(nbytes);
-                adc.stop();
+                adc::stop();
                 done();
             }
         }
     }
-    uint32_t ncollected = adc.stop();
-    while (adc.drain_buffer(&tmp_buf, sz, ch_index) == 0) {
+    uint32_t ncollected = adc::stop();
+    while (adc::drain_buffer(&tmp_buf, sz, ch_index) == 0) {
         Serial.print("Draining ");
         Serial.print(sz);
         Serial.println(" more samples");
@@ -139,7 +142,7 @@ void loop() {
     Serial.println(DURATION_SEC);
     Serial.print("Number of samples: ");
     Serial.println(ncollected);
-    Serial.print("Sample Rate Per Channel (Hz): ");
+    Serial.print("Sample Rate Per adc::Channel (Hz): ");
     Serial.println(per_ch_sample_rate);
 
     int64_t rc = truncate_to_smallest(FILES, NCHANNELS);

@@ -5,6 +5,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+namespace adc {
+
 #define TEN_BIT_BIAS 0x1FF
 #define TEN_TO_SIXTEEN_BIT(x) (((x) - TEN_BIT_BIAS) << 6)
 
@@ -29,12 +31,21 @@
 
 #define ADC_CYCLES_PER_SAMPLE 13.5
 
-static uint8_t prescaler_mask(pre_t val);
-static int8_t init_frame(BitResolution res, uint8_t nchannels,
-                         Channel* channels, size_t ch_window_sz, uint8_t* buf,
-                         size_t buf_sz);
+const size_t MAX_CHANNEL_COUNT = 16;
+
+// ISR helper functions
+static int8_t init_frame(BitResolution res, size_t ch_window_sz);
 static inline bool activate_adc_channel(Channel& ch);
 static bool increment_channel_buffer_index();
+
+// Internal ADC control functions
+static uint8_t prescaler_mask(pre_t val);
+static void enable_interrupts();
+static void disable_interrupts();
+static void enable_autotrigger();
+static void disable_autotrigger();
+static void set_source(AutotriggerSource src);
+static TimerRc set_frequency(uint32_t sample_rate);
 
 static const size_t NPRESCALERS = 7;
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
@@ -67,8 +78,6 @@ static struct AdcFrame {
     uint8_t* buf1;
     uint8_t* buf2;
 
-    // Array of channels to swap between
-    Channel* channels;
     // Number of channels in the `channels` array - 1 (save subtractions)
     size_t max_ch_index;
     // Number of samples to collect for a channel before swapping to the next
@@ -86,6 +95,15 @@ static struct AdcFrame {
     BitResolution res;
 } FRAME;
 
+static struct Adc {
+    uint8_t nchannels;
+    Channel* channels;
+    uint8_t* buf;
+    size_t sz;
+    BitResolution res;
+    bool initialized = false;
+} INSTANCE;
+
 ISR(ADC_vect) {
     // 1) Immediately reenable timer so we don't miss a beat
     TIFR1 = UINT8_MAX;
@@ -94,7 +112,6 @@ ISR(ADC_vect) {
     if (!FRAME.active) {
         return;
     } else if (FRAME.buf1full && FRAME.buf2full) {
-        Serial.print("F");
         return;
     } else if (FRAME.ch_error) {
         return;
@@ -135,7 +152,7 @@ ISR(ADC_vect) {
             ++FRAME.ch_index;
             FRAME.sample_index -= FRAME.ch_window_sz;
         }
-        if (!activate_adc_channel(FRAME.channels[FRAME.ch_index])) {
+        if (!activate_adc_channel(INSTANCE.channels[FRAME.ch_index])) {
             FRAME.ch_error = true;
         }
         uint8_t* base = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
@@ -143,95 +160,7 @@ ISR(ADC_vect) {
     }
 }
 
-void Adc::on() {
-    PRR0 &= ~(1 << PRADC);
-    ADCSRA |= (1 << ADEN);
-}
-
-void Adc::off() { ADCSRA &= ~(1 << ADEN); }
-
-void Adc::sleep() {
-    off();
-    PRR0 |= (1 << PRADC);
-}
-
-void Adc::enable_interrupts() { ADCSRA |= (1 << ADIE); }
-void Adc::disable_interrupts() { ADCSRA &= ~(1 << ADIE); }
-
-void Adc::enable_autotrigger() { ADCSRA |= (1 << ADATE); }
-void Adc::disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
-
-void Adc::set_source(enum AdcSource src) {
-    ADCSRB &= ~SOURCE_MASK;
-    ADCSRB |= static_cast<uint8_t>(src);
-}
-
-TimerRc Adc::set_frequency(uint32_t sample_rate) {
-    // For each channel
-    sample_rate *= this->nchannels;
-
-    TimerConfig host_cfg(F_CPU, sample_rate, Skew::High);
-    TimerRc rc = activate_t1(host_cfg);
-    if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
-        return rc;
-    }
-
-    // Set overflow match on A and B so count resets (uses A) and triggers
-    // interrupt when it does so (match on B)
-    cli();
-    OCR1A = host_cfg.compare;
-    OCR1B = host_cfg.compare;
-    sei();
-
-    clk_t adc_rate = ADC_CYCLES_PER_SAMPLE * sample_rate;
-    // Account for the portion of the time spent switching to the next channel
-    if (this->nchannels > 1) {
-        adc_rate += adc_rate;
-    }
-    TimerConfig adc_cfg(F_CPU, adc_rate, Skew::High);
-    memcpy(SCRATCH_PRESCALERS, PRESCALERS, sizeof(PRESCALERS));
-    rc = adc_cfg.compute(NPRESCALERS, SCRATCH_PRESCALERS, 1, 0.0);
-    if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
-        return rc;
-    }
-    uint8_t prescaler = prescaler_mask(adc_cfg.prescaler);
-    ADCSRA &= ~PRESCALER_MASK;
-    ADCSRA |= prescaler;
-    return rc;
-}
-
-int8_t Adc::start(BitResolution res, uint32_t sample_rate, size_t ch_window_sz,
-                  uint32_t warmup_ms) {
-    int8_t rc = init_frame(res, nchannels, channels, ch_window_sz, buf, sz);
-    if (rc) {
-        return rc;
-    }
-    this->res = res;
-
-    on();
-    set_source(AdcSource::TimCnt1CmpB);
-    set_frequency(sample_rate);
-    // 5V analog reference
-    ADMUX = (1 << REFS0);
-    // Start with first channel
-    if (!activate_adc_channel(channels[0])) {
-        return 1;
-    }
-    // Left adjust result so we can just read from ADCH in ISR
-    if (res == BitResolution::Eight) {
-        ADMUX |= (1 << ADLAR);
-    }
-    // Slight delay to allow channels to settle
-    FRAME.active = false;
-    enable_autotrigger();
-    enable_interrupts();
-    delay(warmup_ms);
-    FRAME.active = true;
-
-    return 0;
-}
-
-int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
+int8_t drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (buf == nullptr) {
         return -1;
     } else if (FRAME.active) {
@@ -265,7 +194,7 @@ int8_t Adc::drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     return 0;
 }
 
-int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
+int8_t swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     if (buf == nullptr) {
         return -1;
     } else if (!(FRAME.buf1full || FRAME.buf2full)) {
@@ -316,9 +245,67 @@ int8_t Adc::swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     return 0;
 }
 
-uint32_t Adc::collected() { return FRAME.collected; }
+bool init(uint8_t nchannels, Channel* channels, uint8_t* buf, size_t sz) {
+    if (nchannels > MAX_CHANNEL_COUNT) {
+        return false;
+    }
+    INSTANCE.nchannels = nchannels;
+    INSTANCE.channels = channels;
+    INSTANCE.buf = buf;
+    INSTANCE.sz = sz;
+    INSTANCE.initialized = true;
+    return true;
+}
 
-uint32_t Adc::stop() {
+void on() {
+    PRR0 &= ~(1 << PRADC);
+    ADCSRA |= (1 << ADEN);
+}
+
+void off() { ADCSRA &= ~(1 << ADEN); }
+
+void sleep() {
+    off();
+    PRR0 |= (1 << PRADC);
+}
+
+int8_t start(BitResolution res, uint32_t sample_rate, size_t ch_window_sz,
+             uint32_t warmup_ms) {
+    if (!INSTANCE.initialized) {
+        return -1;
+    }
+    int8_t rc = init_frame(res, ch_window_sz);
+    if (rc) {
+        return -2;
+    }
+    INSTANCE.res = res;
+
+    on();
+    set_source(AutotriggerSource::TimCnt1CmpB);
+    set_frequency(sample_rate);
+    // 5V analog reference
+    ADMUX = (1 << REFS0);
+    // Start with first channel
+    if (!activate_adc_channel(INSTANCE.channels[0])) {
+        return -3;
+    }
+    // Left adjust result so we can just read from ADCH in ISR
+    if (res == BitResolution::Eight) {
+        ADMUX |= (1 << ADLAR);
+    }
+    // Slight delay to allow channels to settle
+    FRAME.active = false;
+    enable_autotrigger();
+    enable_interrupts();
+    delay(warmup_ms);
+    FRAME.active = true;
+
+    return 0;
+}
+
+uint32_t collected() { return FRAME.collected; }
+
+uint32_t stop() {
     off();
     disable_interrupts();
     disable_autotrigger();
@@ -326,6 +313,53 @@ uint32_t Adc::stop() {
     uint32_t collected = FRAME.collected;
     FRAME.active = false;
     return collected;
+}
+
+static void enable_interrupts() { ADCSRA |= (1 << ADIE); }
+
+static void disable_interrupts() { ADCSRA &= ~(1 << ADIE); }
+
+static void enable_autotrigger() { ADCSRA |= (1 << ADATE); }
+
+static void disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
+
+static void set_source(enum AutotriggerSource src) {
+    ADCSRB &= ~SOURCE_MASK;
+    ADCSRB |= static_cast<uint8_t>(src);
+}
+
+static TimerRc set_frequency(uint32_t sample_rate) {
+    // For each channel
+    sample_rate *= INSTANCE.nchannels;
+
+    TimerConfig host_cfg(F_CPU, sample_rate, Skew::High);
+    TimerRc rc = activate_t1(host_cfg);
+    if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
+        return rc;
+    }
+
+    // Set overflow match on A and B so count resets (uses A) and triggers
+    // interrupt when it does so (match on B)
+    cli();
+    OCR1A = host_cfg.compare;
+    OCR1B = host_cfg.compare;
+    sei();
+
+    clk_t adc_rate = ADC_CYCLES_PER_SAMPLE * sample_rate;
+    // Account for the portion of the time spent switching to the next channel
+    if (INSTANCE.nchannels > 1) {
+        adc_rate += adc_rate;
+    }
+    TimerConfig adc_cfg(F_CPU, adc_rate, Skew::High);
+    memcpy(SCRATCH_PRESCALERS, PRESCALERS, sizeof(PRESCALERS));
+    rc = adc_cfg.compute(NPRESCALERS, SCRATCH_PRESCALERS, 1, 0.0);
+    if (rc != TimerRc::Okay && rc != TimerRc::ErrorRange) {
+        return rc;
+    }
+    uint8_t prescaler = prescaler_mask(adc_cfg.prescaler);
+    ADCSRA &= ~PRESCALER_MASK;
+    ADCSRA |= prescaler;
+    return rc;
 }
 
 int8_t Channel::mux_mask() {
@@ -351,25 +385,23 @@ int8_t Channel::mux_mask() {
     }
 }
 
-static int8_t init_frame(BitResolution res, uint8_t nchannels,
-                         Channel* channels, size_t ch_window_sz, uint8_t* buf,
-                         size_t buf_sz) {
+static int8_t init_frame(BitResolution res, size_t ch_window_sz) {
     size_t ch_window_mask = ch_window_sz - 1;
-    if (nchannels < 1) {
+    if (INSTANCE.nchannels < 1) {
         return -1;
     } else if (ch_window_sz == 0) {
         return -2;
     } else if (ch_window_sz & ch_window_mask) {
         // Channel window size needs to be a power of 2
         return -3;
-    } else if (buf_sz < MIN_BUF_SZ_PER_CHANNEL * nchannels) {
+    } else if (INSTANCE.sz < MIN_BUF_SZ_PER_CHANNEL * INSTANCE.nchannels) {
         return -4;
     }
 
     const size_t nbuffers = 2;
     size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
-    size_t samples_per_buf = buf_sz / (nbuffers * bytes_per_sample);
-    size_t samples_per_ch_buf = samples_per_buf / nchannels;
+    size_t samples_per_buf = INSTANCE.sz / (nbuffers * bytes_per_sample);
+    size_t samples_per_ch_buf = samples_per_buf / INSTANCE.nchannels;
     // Shrink channel buffers if needed to get increment of window size
     size_t window_increment_delta = samples_per_ch_buf & ch_window_mask;
     if (window_increment_delta == samples_per_ch_buf) {
@@ -377,17 +409,15 @@ static int8_t init_frame(BitResolution res, uint8_t nchannels,
     }
     samples_per_ch_buf -= window_increment_delta;
 
-    // Set `FRAME` values
     memset(&FRAME, 0, sizeof(FRAME));
 
     FRAME.res = res;
 
     // Slice up the buffer into a double buffer
-    FRAME.buf1 = buf;
-    FRAME.buf2 = buf + samples_per_buf * bytes_per_sample;
+    FRAME.buf1 = INSTANCE.buf;
+    FRAME.buf2 = INSTANCE.buf + samples_per_buf * bytes_per_sample;
 
-    FRAME.channels = channels;
-    FRAME.max_ch_index = nchannels - 1;
+    FRAME.max_ch_index = INSTANCE.nchannels - 1;
     FRAME.ch_window_sz = ch_window_sz;
     FRAME.ch_window_mask = ch_window_mask;
     FRAME.ch_buffer = FRAME.buf1;
@@ -452,3 +482,4 @@ static uint8_t prescaler_mask(pre_t val) {
             return 0;
     }
 }
+}  // namespace adc

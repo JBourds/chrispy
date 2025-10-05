@@ -32,7 +32,7 @@ uint8_t BUF[BUF_SZ] = {0};
 
 SdFat SD;
 #define NCHANNELS 2
-Channel CHANNELS[] = {
+adc::Channel CHANNELS[] = {
     {.pin = MIC1_PIN, .power = MIC1_POWER},
     {.pin = MIC2_PIN, .power = MIC2_POWER},
 };

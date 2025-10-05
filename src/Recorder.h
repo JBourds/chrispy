@@ -10,7 +10,7 @@
 
 struct Recorder {
     uint8_t nchannels;
-    Channel *channels;
+    adc::Channel *channels;
     SdFat *sd;
 
     /**
@@ -21,7 +21,7 @@ struct Recorder {
      * @param channels: Array of channels to record on.
      * @param sd: SD card to use for recording.
      */
-    Recorder(uint8_t _nchannels, Channel *_channels, SdFat *_sd)
+    Recorder(uint8_t _nchannels, adc::Channel *_channels, SdFat *_sd)
         : nchannels(_nchannels), channels(_channels), sd(_sd) {}
 
     /**

@@ -32,8 +32,16 @@ uint8_t BUF[BUF_SZ] = {0};
 SdFat SD;
 SdFile REC;
 uint8_t NCHANNELS = 1;
-Channel CHANNELS[] = {{.pin = MIC_PIN, .power = MIC_POWER}};
+adc::Channel CHANNELS[] = {{.pin = MIC_PIN, .power = MIC_POWER}};
 const char* FILENAME = "adc_rec.wav";
+
+void done() {
+    if (REC.isOpen() && !REC.close()) {
+        Serial.println("Error closing recording file.");
+    }
+    while (true) {
+    }
+}
 
 void setup() {
     Serial.begin(9600);
@@ -48,13 +56,15 @@ void setup() {
 
     if (!SD.begin(SD_CONFIG)) {
         Serial.println("SD init failed!");
-        while (true) {
-        }
+        done();
     }
     if (!REC.open(FILENAME, O_TRUNC | O_WRITE | O_CREAT)) {
         Serial.println("Failed to open recording file.");
-        while (true) {
-        }
+        done();
+    }
+    if (!adc::init(NCHANNELS, CHANNELS, BUF, BUF_SZ)) {
+        Serial.println("ADC init failed.");
+        done();
     }
 
     for (size_t i = 0; i < NCHANNELS; ++i) {
@@ -66,16 +76,7 @@ void setup() {
     Serial.println("Initialized");
 }
 
-void done() {
-    if (!REC.close()) {
-        Serial.println("Error closing recording file.");
-    }
-    while (true) {
-    }
-}
-
 void loop() {
-    Adc adc(NCHANNELS, CHANNELS, BUF, BUF_SZ);
     WavHeader hdr;
     uint8_t* tmp_buf = nullptr;
     size_t sz = 0;
@@ -85,13 +86,13 @@ void loop() {
         Serial.println("Error writing out placeholder header bytes.");
         done();
     }
-    if (adc.start(RESOLUTION, SAMPLE_RATE) != 0) {
+    if (adc::start(RESOLUTION, SAMPLE_RATE) != 0) {
         Serial.println("Error starting ADC");
         done();
     }
     uint32_t deadline = millis() + DURATION_SEC * 1000;
     while (millis() < deadline) {
-        if (adc.swap_buffer(&tmp_buf, sz, ch_index) == 0) {
+        if (adc::swap_buffer(&tmp_buf, sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
                 continue;
             }
@@ -108,8 +109,8 @@ void loop() {
             }
         }
     }
-    uint32_t ncollected = adc.stop();
-    while (adc.drain_buffer(&tmp_buf, sz, ch_index) == 0) {
+    uint32_t ncollected = adc::stop();
+    while (adc::drain_buffer(&tmp_buf, sz, ch_index) == 0) {
         Serial.print("Draining ");
         Serial.print(sz);
         Serial.println(" more samples");
