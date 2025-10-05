@@ -66,14 +66,17 @@ void setup() {
         pinMode(CHANNELS[i].power, OUTPUT);
         digitalWrite(CHANNELS[i].power, LOW);
     }
+    if (!recording::init(NCHANNELS, CHANNELS, &SD)) {
+        Serial.println("Recording init failed!");
+        done();
+    }
 
     Serial.println("Initialized");
 }
 
 void loop() {
-    Recorder rec(NCHANNELS, CHANNELS, &SD);
-    int32_t rc = rec.record(FILENAMES, RESOLUTION, SAMPLE_RATE,
-                            DURATION_SEC * 1000, BUF, BUF_SZ);
+    int32_t rc = recording::record(FILENAMES, RESOLUTION, SAMPLE_RATE,
+                                   DURATION_SEC * 1000, BUF, BUF_SZ);
     if (rc < 0) {
         Serial.print("Error during recording. RC: ");
         Serial.println(rc);
