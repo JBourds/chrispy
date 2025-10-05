@@ -9,7 +9,6 @@
 #define MIC_PIN A0
 #define MIC_POWER 22
 #define POWER_5V 5
-#define POWER_3V 3
 #define SD_CS_PIN 12
 #define SD_EN 4
 #define RESOLUTION BitResolution::Eight
@@ -81,8 +80,6 @@ void loop() {
     uint8_t* tmp_buf = nullptr;
     size_t sz = 0;
     size_t ch_index = 0;
-    uint32_t ncollected;
-    uint32_t sample_rate;
 
     if (REC.write(&hdr, sizeof(hdr)) != sizeof(hdr)) {
         Serial.println("Error writing out placeholder header bytes.");
@@ -111,7 +108,7 @@ void loop() {
             }
         }
     }
-    ncollected = adc.stop();
+    uint32_t ncollected = adc.stop();
     while (adc.drain_buffer(&tmp_buf, sz, ch_index) == 0) {
         Serial.print("Draining ");
         Serial.print(sz);
@@ -130,7 +127,7 @@ void loop() {
         }
     }
 
-    sample_rate = ncollected / DURATION_SEC;
+    uint32_t sample_rate = ncollected / DURATION_SEC;
     Serial.print("Seconds: ");
     Serial.println(DURATION_SEC);
     Serial.print("Number of samples: ");

@@ -12,7 +12,6 @@
 #define MIC2_PIN A4
 #define MIC2_POWER 26
 #define POWER_5V 5
-#define POWER_3V 3
 #define SD_CS_PIN 12
 #define SD_EN 4
 #define RESOLUTION BitResolution::Eight
