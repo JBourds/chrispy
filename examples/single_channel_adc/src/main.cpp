@@ -18,8 +18,7 @@
 // Recording
 #define DURATION_SEC 5ul
 #define BUF_SZ 1024
-uint8_t buf[BUF_SZ] = {0};
-uint32_t deadline = 0;
+uint8_t BUF[BUF_SZ] = {0};
 
 // Max SPI rate for AVR is 10 MHz for F_CPU 20 MHz, 8 MHz for F_CPU 16 MHz.
 #define SPI_CLOCK SD_SCK_MHZ(F_CPU / 2)
@@ -33,27 +32,20 @@ uint32_t deadline = 0;
 
 SdFat SD;
 SdFile REC;
+uint8_t NCHANNELS = 1;
+Channel CHANNELS[] = {{.pin = MIC_PIN, .power = MIC_POWER}};
 const char* FILENAME = "adc_rec.wav";
-#define NUM_SAMPLES (SAMPLE_RATE * DURATION_SEC)
 
 void setup() {
     Serial.begin(9600);
     while (!Serial) {
         delay(50);
     }
-    delay(500);
 
-    pinMode(MIC_POWER, OUTPUT);
-    pinMode(POWER_5V, OUTPUT);
-    pinMode(POWER_3V, OUTPUT);
     pinMode(SD_EN, OUTPUT);
-
-    pinMode(MIC_PIN, INPUT);
-
+    pinMode(POWER_5V, OUTPUT);
     digitalWrite(SD_EN, HIGH);
-    digitalWrite(MIC_POWER, LOW);
     digitalWrite(POWER_5V, HIGH);
-    digitalWrite(POWER_3V, LOW);
 
     if (!SD.begin(SD_CONFIG)) {
         Serial.println("SD init failed!");
@@ -64,6 +56,12 @@ void setup() {
         Serial.println("Failed to open recording file.");
         while (true) {
         }
+    }
+
+    for (size_t i = 0; i < NCHANNELS; ++i) {
+        pinMode(CHANNELS[i].pin, INPUT);
+        pinMode(CHANNELS[i].power, OUTPUT);
+        digitalWrite(CHANNELS[i].power, LOW);
     }
 
     Serial.println("Initialized");
@@ -78,14 +76,11 @@ void done() {
 }
 
 void loop() {
-    uint8_t nchannels = 1;
-    Channel channels[] = {{.pin = MIC_PIN, .power = MIC_POWER}};
-    Adc adc(nchannels, channels, buf, BUF_SZ);
+    Adc adc(NCHANNELS, CHANNELS, BUF, BUF_SZ);
     WavHeader hdr;
     uint8_t* tmp_buf = nullptr;
     size_t sz = 0;
     size_t ch_index = 0;
-    uint32_t deadline;
     uint32_t ncollected;
     uint32_t sample_rate;
 
@@ -97,7 +92,7 @@ void loop() {
         Serial.println("Error starting ADC");
         done();
     }
-    deadline = millis() + DURATION_SEC * 1000;
+    uint32_t deadline = millis() + DURATION_SEC * 1000;
     while (millis() < deadline) {
         if (adc.swap_buffer(&tmp_buf, sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
