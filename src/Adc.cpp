@@ -86,7 +86,21 @@ static struct AdcFrame {
     BitResolution res;
 } FRAME;
 
-static inline void read_sample() {
+ISR(ADC_vect) {
+    // 1) Immediately reenable timer so we don't miss a beat
+    TIFR1 = UINT8_MAX;
+
+    // 2) Check that we can actually perform work
+    if (!FRAME.active) {
+        return;
+    } else if (FRAME.buf1full && FRAME.buf2full) {
+        Serial.print("F");
+        return;
+    } else if (FRAME.ch_error) {
+        return;
+    }
+
+    // 3) Read the sample
     if (FRAME.res == BitResolution::Eight) {
         FRAME.ch_buffer[FRAME.sample_index++] = ADCH;
     } else {
@@ -97,9 +111,8 @@ static inline void read_sample() {
         FRAME.ch_buffer[FRAME.sample_index++] = new_sample >> CHAR_BIT;
     }
     ++FRAME.collected;
-}
 
-static inline void try_swap_buffer() {
+    // 4) Swap buffer we are writing to if we just filled the current one up
     if (FRAME.sample_index == FRAME.ch_buf_sz &&
         FRAME.ch_index == FRAME.max_ch_index) {
         if (FRAME.using_buf_1) {
@@ -112,9 +125,8 @@ static inline void try_swap_buffer() {
         FRAME.ch_index = 0;
         FRAME.ch_buffer = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
     }
-}
 
-static inline void try_swap_channel() {
+    // 5) Swap channels if it is time to
     if (FRAME.max_ch_index > 0 && FRAME.sample_index > 0 &&
         (FRAME.sample_index & FRAME.ch_window_mask) == 0) {
         if (FRAME.ch_index == FRAME.max_ch_index) {
@@ -129,20 +141,6 @@ static inline void try_swap_channel() {
         uint8_t* base = FRAME.using_buf_1 ? FRAME.buf1 : FRAME.buf2;
         FRAME.ch_buffer = base + FRAME.ch_index * FRAME.ch_buf_sz;
     }
-}
-
-ISR(ADC_vect) {
-    TIFR1 = UINT8_MAX;
-    if (!FRAME.active) {
-        return;
-    } else if (FRAME.buf1full && FRAME.buf2full) {
-        return;
-    } else if (FRAME.ch_error) {
-        return;
-    }
-    read_sample();
-    try_swap_buffer();
-    try_swap_channel();
 }
 
 void Adc::on() {
