@@ -1,7 +1,7 @@
 {
     "name": "chrispy",
-    "version": "1.0.0",
-    "description": "Library for multi-channel concurrent audio recording.",
+    "version": "0.1.0",
+    "description": "Library for high performance multi-channel concurrent ADC sampling/audio recording on ATMega 2560.",
     "dependencies": [
         { "name": "SdFat", "version":  "greiman/SdFat@^2.3.1" }
     ],
