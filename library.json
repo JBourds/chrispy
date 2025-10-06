@@ -2,6 +2,15 @@
     "name": "chrispy",
     "version": "0.1.0",
     "description": "Library for high performance multi-channel concurrent ADC sampling/audio recording on ATMega 2560.",
+    "keywords": "sound, audio, music, sd, card, playback",
+    "description": "PCM/WAV playback direct from SD card",
+    "repository":
+    {
+      "type": "git",
+      "url": "https://github.com/JBourds/chrispy.git"
+    },
+    "frameworks": "arduino",
+    "platforms": "atmelavr",
     "dependencies": [
         { "name": "SdFat", "version":  "greiman/SdFat@^2.3.1" }
     ],
