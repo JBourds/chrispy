@@ -16,7 +16,7 @@
 
 // Recording
 #define DURATION_SEC 5ul
-#define BUF_SZ 1024
+#define BUF_SZ 4096
 uint8_t BUF[BUF_SZ] = {0};
 
 // Max SPI rate for AVR is 10 MHz for F_CPU 20 MHz, 8 MHz for F_CPU 16 MHz.

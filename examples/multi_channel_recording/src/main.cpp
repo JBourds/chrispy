@@ -75,11 +75,11 @@ void setup() {
 }
 
 void loop() {
-    int32_t rc = recording::record(FILENAMES, RESOLUTION, SAMPLE_RATE,
+    int64_t rc = recording::record(FILENAMES, RESOLUTION, SAMPLE_RATE,
                                    DURATION_SEC * 1000, BUF, BUF_SZ);
     if (rc < 0) {
         Serial.print("Error during recording. RC: ");
-        Serial.println(rc);
+        Serial.println(static_cast<int32_t>(rc));
     }
     done();
 }

@@ -10,12 +10,12 @@
 #define POWER_5V 5
 #define SD_CS_PIN 12
 #define SD_EN 4
-#define RESOLUTION BitResolution::Ten
+#define RESOLUTION BitResolution::Eight
 #define SAMPLE_RATE 24000ul
 
 // Recording
 #define DURATION_SEC 5ul
-#define BUF_SZ 2048
+#define BUF_SZ 4096
 uint8_t BUF[BUF_SZ] = {0};
 
 // Max SPI rate for AVR is 10 MHz for F_CPU 20 MHz, 8 MHz for F_CPU 16 MHz.
@@ -69,11 +69,11 @@ void setup() {
 }
 
 void loop() {
-    int32_t rc = recording::record(FILENAMES, RESOLUTION, SAMPLE_RATE,
+    int64_t rc = recording::record(FILENAMES, RESOLUTION, SAMPLE_RATE,
                                    DURATION_SEC * 1000, BUF, BUF_SZ);
     if (rc < 0) {
         Serial.print("Error during recording. RC: ");
-        Serial.println(rc);
+        Serial.println(static_cast<int32_t>(rc));
     }
     done();
 }
