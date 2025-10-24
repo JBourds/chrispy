@@ -7,6 +7,8 @@
 #include "SdFunctions.h"
 #include "WavHeader.h"
 
+using adc::Channel;
+
 #define MIC1_PIN A0
 #define MIC1_POWER 22
 #define MIC2_PIN A4
@@ -33,9 +35,9 @@
 uint8_t BUF[BUF_SZ] = {0};
 
 #define NCHANNELS 2
-adc::Channel CHANNELS[] = {
-    {.pin = MIC1_PIN, .power = MIC1_POWER},
-    {.pin = MIC2_PIN, .power = MIC2_POWER},
+Channel CHANNELS[] = {
+    Channel(MIC1_PIN, MIC1_POWER, false),
+    Channel(MIC2_PIN, MIC2_POWER, false),
 };
 
 SdFat SD;

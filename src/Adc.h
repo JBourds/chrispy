@@ -45,7 +45,7 @@ struct Channel {
      * @param _power: Pin number for power.
      * @param _active_high: Flag indicating if channel is active low or high.
      */
-    Channel(uint8_t _pin, int8_t _power = -1, bool _active_high = true)
+    explicit Channel(uint8_t _pin, int8_t _power, bool _active_high)
         : pin(_pin), power(_power), active_high(_active_high) {}
 
     /**

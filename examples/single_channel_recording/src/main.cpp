@@ -28,9 +28,11 @@ uint8_t BUF[BUF_SZ] = {0};
 #define SD_CONFIG SdSpiConfig(SD_CS_PIN, SHARED_SPI, SPI_CLOCK)
 #endif
 
+using adc::Channel;
+
 SdFat SD;
 #define NCHANNELS 1
-adc::Channel CHANNELS[NCHANNELS] = {{.pin = MIC_PIN, .power = MIC_POWER}};
+Channel CHANNELS[] = {Channel(MIC_PIN, MIC_POWER, false)};
 const char* FILENAMES[NCHANNELS] = {"adc_rec.wav"};
 
 void done() {
