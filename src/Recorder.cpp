@@ -46,12 +46,14 @@ int64_t record(const char *filenames[], BitResolution res, uint32_t sample_rate,
         }
     }
 
-    adc::init(INSTANCE.nchannels, INSTANCE.channels, buf, sz);
+    if (!adc::init(INSTANCE.nchannels, INSTANCE.channels, buf, sz)) {
+        return -4;
+    }
     uint8_t *tmp_buf = nullptr;
     size_t tmp_sz = 0;
     size_t ch_index = 0;
     if (adc::start(res, sample_rate) != 0) {
-        return -4;
+        return -5;
     }
     uint32_t deadline = millis() + duration_ms;
     while (millis() <= deadline) {
@@ -63,7 +65,7 @@ int64_t record(const char *filenames[], BitResolution res, uint32_t sample_rate,
             if (nwritten != tmp_sz) {
                 adc::stop();
                 close_all(files, INSTANCE.nchannels);
-                return -5;
+                return -6;
             }
         }
     }
@@ -75,7 +77,7 @@ int64_t record(const char *filenames[], BitResolution res, uint32_t sample_rate,
         size_t nwritten = files[ch_index].write(tmp_buf, tmp_sz);
         if (nwritten != tmp_sz) {
             close_all(files, INSTANCE.nchannels);
-            return -6;
+            return -7;
         }
     }
 
@@ -83,7 +85,7 @@ int64_t record(const char *filenames[], BitResolution res, uint32_t sample_rate,
     int64_t rc = truncate_to_smallest(files, INSTANCE.nchannels);
     if (rc < 0) {
         close_all(files, INSTANCE.nchannels);
-        return -7;
+        return -8;
     }
     uint32_t file_size = static_cast<uint32_t>(rc);
     uint32_t per_ch_sample_rate =
@@ -93,7 +95,7 @@ int64_t record(const char *filenames[], BitResolution res, uint32_t sample_rate,
         if (!(files[i].seekSet(0) &&
               files[i].write(&hdr, sizeof(hdr)) == sizeof(hdr))) {
             close_all(files, INSTANCE.nchannels);
-            return -8;
+            return -9;
         }
     }
 
