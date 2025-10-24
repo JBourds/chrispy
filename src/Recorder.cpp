@@ -4,6 +4,7 @@
 #include <SdFat.h>
 
 #include "SdFunctions.cpp"
+#include "WavHeader.h"
 
 namespace recording {
 

@@ -4,9 +4,16 @@
 #include <stdint.h>
 
 #include "Timer.h"
-#include "WavHeader.h"
 
 namespace adc {
+
+/**
+ * Supported bit resolutions for ADC sampling.
+ */
+enum struct BitResolution : uint8_t {
+    Eight = 8,
+    Ten = 10,
+};
 
 /**
  * Number of channels supported by the ADC (0 - 15).

@@ -4,9 +4,9 @@
 #include <stdint.h>
 
 #include "Adc.h"
-
-// TODO: Conditional compilation with SD library
 #include "SdFat.h"
+
+using adc::BitResolution;
 
 namespace recording {
 /**
