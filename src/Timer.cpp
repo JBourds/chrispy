@@ -186,8 +186,6 @@ static const char* error_str(TimerRc rc) {
             return "Okay";
         case TimerRc::ImpossibleClock:
             return "Impossible Clock";
-        case TimerRc::CompareRange:
-            return "Compare Range";
         case TimerRc::ZeroDiv:
             return "Zero Division";
         case TimerRc::ErrorRange:
