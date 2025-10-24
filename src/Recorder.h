@@ -16,6 +16,9 @@ namespace recording {
  * `power_pins`.
  * @param channels: Array of channels to record on.
  * @param sd: SD card to use for recording.
+ *
+ * @returns (bool): True if the module was successfully initialized.
+ *  False otherwise.
  */
 bool init(uint8_t nchannels, adc::Channel *channels, SdFat *sd);
 
