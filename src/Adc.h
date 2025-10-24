@@ -33,6 +33,22 @@ struct Channel {
      */
     int8_t power;
     /**
+     * Boolean for if the power is active high or active high,
+     */
+    bool active_high;
+
+    /**
+     * Channel constructor. Assumes no power is required unless otherwise
+     * noted.
+     *
+     * @param _pin: Analog pin number for channel.
+     * @param _power: Pin number for power.
+     * @param _active_high: Flag indicating if channel is active low or high.
+     */
+    Channel(uint8_t _pin, int8_t _power = -1, bool _active_high = true)
+        : pin(_pin), power(_power), active_high(_active_high) {}
+
+    /**
      * Gets bit pattern for mux mask to use with ADC for channel.
      *
      * @returns (int8_t): Bit-mask or ADC mask if successful (>0), negative
