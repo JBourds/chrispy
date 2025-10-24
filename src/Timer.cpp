@@ -24,7 +24,6 @@ static enum TimerRc validate_preference(struct TimerConfig* cfg);
 static void compute_error(struct TimerConfig* cfg);
 static clk_t compute_delta(struct TimerConfig* cfg);
 static void compute_actual(struct TimerConfig* cfg);
-static const char* error_str(TimerRc rc);
 static uint8_t prescaler_mask(pre_t val);
 
 static struct Timer1 {
@@ -84,7 +83,7 @@ static struct Timer1 {
 
 static const size_t NPRESCALERS = 5;
 static const pre_t PRESCALERS[] = {1, 8, 64, 256, 1024};
-static const pre_t SCRATCH_PRESCALERS[NPRESCALERS];
+static pre_t SCRATCH_PRESCALERS[NPRESCALERS];
 
 TimerRc activate_t1(TimerConfig& cfg) {
     memcpy(SCRATCH_PRESCALERS, PRESCALERS, sizeof(PRESCALERS));
@@ -180,7 +179,7 @@ void TimerConfig::pprint() {
     Serial.println(this->error * 100);
 }
 
-static const char* error_str(TimerRc rc) {
+const char* error_str(TimerRc rc) {
     switch (rc) {
         case TimerRc::Okay:
             return "Okay";

@@ -21,6 +21,15 @@ enum struct TimerRc : uint8_t {
 };
 
 /**
+ * Retrieve a string description of a timer return code.
+ *
+ * @param rc: Return code to get its string for.
+ *
+ * @returns (const char*): Static string for return code.
+ */
+const char* error_str(TimerRc rc);
+
+/**
  * Preference for how the computed timer configuration should skew if it cannot
  * get the precise value.
  */
