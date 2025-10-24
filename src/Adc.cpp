@@ -55,46 +55,60 @@ static pre_t SCRATCH_PRESCALERS[NPRESCALERS];
 // Needs to be global so it also gets reset when resetting ISR frame.
 static size_t CH_BUFFER_INDEX = 0;
 
+/**
+ * Private/static data member for use by the ISR.
+ *
+ * Stores the configuration state passed in via public module functions
+ * and metadata used by the ISR.
+ */
 static struct AdcFrame {
-    // Currently active channel
+    /* !< Currently active channel */
     volatile size_t ch_index;
-    // Current sample index within the channel sub-buffer
+    /* !< Current sample index within the channel sub-buffer */
     volatile size_t sample_index;
-    // Channel `ch_index` sub-buffer
+    /* !< Channel `ch_index` sub-buffer */
     volatile uint8_t* ch_buffer;
 
     // Flags with frame state
-    // "Index" into the double buffer
+
+    /* !< "Index" into the double buffer */
     volatile bool using_buf_1;
-    // Flags indicating at least one channel sub-buffer has not yet been flushed
-    // in buffer 1 or 2
+    /* !< Flag indicating if the first buffer is full */
     volatile bool buf1full;
+    /* !< Flag indicating if the second buffer is full */
     volatile bool buf2full;
-    // Flag indicating there was some error when switching between channels
+
+    /* !< Flag indicating an error when switching between channels */
     volatile bool ch_error;
 
-    // Accounting info/frame setup
-    // Double buffers being swapped between
+    /* !< First buffer being written to on ADC interrupts. */
     uint8_t* buf1;
+    /* !< Second buffer being written to on ADC interrupts. */
     uint8_t* buf2;
 
-    // Number of channels in the `channels` array - 1 (save subtractions)
+    /* !< Number of channels in the `channels` array - 1 (save subtractions). */
     size_t max_ch_index;
-    // Number of samples to collect for a channel before swapping to the next
+    /* !< Number of samples to collect for a channel before swapping to the
+     * next.
+     */
     size_t ch_window_sz;
-    // `ch_window_sz` - 1. Cached result to save subtractions in ISR.
+    /* !< `ch_window_sz` - 1. Cached result to save subtractions in ISR. This
+     * is a valid mask because we ensure the window size is a power of 2.*/
     size_t ch_window_mask;
-    // Number of bytes per channel buffer
+    /* !< Number of bytes per channel buffer */
     size_t ch_buf_sz;
 
-    // Number of samples collected
+    /* !< Number of samples collected */
     volatile uint32_t collected;
-    // Flag for whether the frame is currently in use
+    /* !< Flag for whether the frame is currently in use */
     bool active;
-    // Bit resolution for samples
+    /* !< Bit resolution for samples */
     BitResolution res;
 } FRAME;
 
+/**
+ * Singleton instance of the ADC.
+ */
 static struct Adc {
     uint8_t nchannels;
     Channel* channels;
@@ -104,6 +118,9 @@ static struct Adc {
     bool initialized = false;
 } INSTANCE;
 
+/**
+ * Interrupt service routine responsible for reading samples from the ADC.
+ */
 ISR(ADC_vect) {
     // 1) Immediately reenable timer so we don't miss a beat
     TIFR1 = UINT8_MAX;

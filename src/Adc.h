@@ -8,18 +8,29 @@
 
 namespace adc {
 
+/**
+ * Number of channels supported by the ADC (0 - 15).
+ */
 extern const size_t MAX_CHANNEL_COUNT;
 
 /**
  * Single ADC channel (pin + metadata).
  */
 struct Channel {
-    // Channel being read, or `a` in `a` - `b`
+    /**
+     * Pin number corresponding to the channel being read.
+     */
     uint8_t pin;
-    // Power pin. If negative, indicates no power is needed.
+    /**
+     * Power pin. If negative, indicates no power is needed.
+     */
     int8_t power;
-
-    // Get bit pattern for mux mask.
+    /**
+     * Gets bit pattern for mux mask to use with ADC for channel.
+     *
+     * @returns (int8_t): Bit-mask or ADC mask if successful (>0), negative
+     * otherwise.
+     */
     inline int8_t mux_mask();
 };
 
@@ -28,14 +39,14 @@ struct Channel {
  * Maps to the bit patterns used to set source in `ADCSRB` register.
  */
 enum struct AutotriggerSource : uint8_t {
-    FreeRunning = 0b000,
-    AnalogComparator = 0b001,
-    ExternalIrq0 = 0b010,
-    TimCnt0CmpA = 0b011,
-    TimCnt0Ovf = 0b100,
-    TimCnt1CmpB = 0b101,
-    TimCnt1Ovf = 0b110,
-    TimCnt1Cap = 0b111,
+    FreeRunning = 0b000,      /*!< 0b000 */
+    AnalogComparator = 0b001, /*!< 0b001 */
+    ExternalIrq0 = 0b010,     /*!< 0b010 */
+    TimCnt0CmpA = 0b011,      /*!< 0b011 */
+    TimCnt0Ovf = 0b100,       /*!< 0b100 */
+    TimCnt1CmpB = 0b101,      /*!< 0b101 */
+    TimCnt1Ovf = 0b110,       /*!< 0b110 */
+    TimCnt1Cap = 0b111,       /*!< 0b111 */
 };
 
 /**
