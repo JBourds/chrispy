@@ -46,6 +46,7 @@ static void enable_autotrigger();
 static void disable_autotrigger();
 static void set_source(AutotriggerSource src);
 static TimerRc set_frequency(uint32_t sample_rate);
+static void configure_channels(size_t nchannels, Channel* channels);
 
 static const size_t NPRESCALERS = 7;
 static const pre_t PRESCALERS[] = {2, 4, 8, 16, 32, 64, 128};
@@ -298,6 +299,7 @@ int8_t start(BitResolution res, uint32_t sample_rate, size_t ch_window_sz,
     INSTANCE.res = res;
 
     on();
+    configure_channels(INSTANCE.nchannels, INSTANCE.channels);
     set_source(AutotriggerSource::TimCnt1CmpB);
     set_frequency(sample_rate);
     // 5V analog reference
@@ -343,6 +345,16 @@ static void disable_autotrigger() { ADCSRA &= ~(1 << ADATE); }
 static void set_source(enum AutotriggerSource src) {
     ADCSRB &= ~SOURCE_MASK;
     ADCSRB |= static_cast<uint8_t>(src);
+}
+
+static void configure_channels(size_t nchannels, Channel* channels) {
+    for (size_t i = 0; i < nchannels; ++i) {
+        if (channels[i].power >= 0) {
+            pinMode(channels[i].pin, INPUT);
+            digitalWrite(channels[i].power,
+                         channels[i].active_high ? HIGH : LOW);
+        }
+    }
 }
 
 static TimerRc set_frequency(uint32_t sample_rate) {
