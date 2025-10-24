@@ -264,9 +264,10 @@ int8_t swap_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
 }
 
 bool init(uint8_t nchannels, Channel* channels, uint8_t* buf, size_t sz) {
-    if (nchannels > MAX_CHANNEL_COUNT) {
+    if (nchannels > MAX_CHANNEL_COUNT || FRAME.active) {
         return false;
     }
+
     INSTANCE.nchannels = nchannels;
     INSTANCE.channels = channels;
     INSTANCE.buf = buf;
