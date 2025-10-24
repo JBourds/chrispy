@@ -25,6 +25,15 @@
 var NAVTREE =
 [
   [ "Chrispy", "index.html", [
+    [ "Repository Layout", "index.html#autotoc_md1", null ],
+    [ "Example Programs", "index.html#autotoc_md2", null ],
+    [ "Theory of Operation", "index.html#autotoc_md3", [
+      [ "Selecting Input Channels", "index.html#autotoc_md4", null ],
+      [ "Configuring the ADC", "index.html#autotoc_md5", null ],
+      [ "Multi-Channel Switching", "index.html#autotoc_md6", null ],
+      [ "Ingesting ADC Data", "index.html#autotoc_md7", null ],
+      [ "Recording", "index.html#autotoc_md8", null ]
+    ] ],
     [ "Namespaces", "namespaces.html", [
       [ "Namespace List", "namespaces.html", "namespaces_dup" ],
       [ "Namespace Members", "namespacemembers.html", [

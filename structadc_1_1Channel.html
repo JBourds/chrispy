@@ -104,6 +104,9 @@ $(document).ready(function(){initNavTree('structadc_1_1Channel.html',''); initRe
 <table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="pub-methods" name="pub-methods"></a>
 Public Member Functions</h2></td></tr>
+<tr class="memitem:a4093b63e4b00b6bcdb9439aa8a543698" id="r_a4093b63e4b00b6bcdb9439aa8a543698"><td class="memItemLeft" align="right" valign="top">&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structadc_1_1Channel.html#a4093b63e4b00b6bcdb9439aa8a543698">Channel</a> (uint8_t _pin, int8_t _power, bool _active_high)</td></tr>
+<tr class="memdesc:a4093b63e4b00b6bcdb9439aa8a543698"><td class="mdescLeft">&#160;</td><td class="mdescRight"><a class="el" href="structadc_1_1Channel.html" title="Single ADC channel (pin + metadata).">Channel</a> constructor.  <br /></td></tr>
+<tr class="separator:a4093b63e4b00b6bcdb9439aa8a543698"><td class="memSeparator" colspan="2">&#160;</td></tr>
 <tr class="memitem:a67ff4f9133d0ea10b803c220c3c4e8a1" id="r_a67ff4f9133d0ea10b803c220c3c4e8a1"><td class="memItemLeft" align="right" valign="top">int8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structadc_1_1Channel.html#a67ff4f9133d0ea10b803c220c3c4e8a1">mux_mask</a> ()</td></tr>
 <tr class="memdesc:a67ff4f9133d0ea10b803c220c3c4e8a1"><td class="mdescLeft">&#160;</td><td class="mdescRight">Gets bit pattern for mux mask to use with ADC for channel.  <br /></td></tr>
 <tr class="separator:a67ff4f9133d0ea10b803c220c3c4e8a1"><td class="memSeparator" colspan="2">&#160;</td></tr>
@@ -116,10 +119,67 @@ Data Fields</h2></td></tr>
 <tr class="memitem:afc1e7b2a6f819b43d600e1721c651245" id="r_afc1e7b2a6f819b43d600e1721c651245"><td class="memItemLeft" align="right" valign="top">int8_t&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structadc_1_1Channel.html#afc1e7b2a6f819b43d600e1721c651245">power</a></td></tr>
 <tr class="memdesc:afc1e7b2a6f819b43d600e1721c651245"><td class="mdescLeft">&#160;</td><td class="mdescRight">Power pin.  <br /></td></tr>
 <tr class="separator:afc1e7b2a6f819b43d600e1721c651245"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a7893858c53fc75e89958167ab734f416" id="r_a7893858c53fc75e89958167ab734f416"><td class="memItemLeft" align="right" valign="top">bool&#160;</td><td class="memItemRight" valign="bottom"><a class="el" href="structadc_1_1Channel.html#a7893858c53fc75e89958167ab734f416">active_high</a></td></tr>
+<tr class="memdesc:a7893858c53fc75e89958167ab734f416"><td class="mdescLeft">&#160;</td><td class="mdescRight">Boolean for if the power is active high or active high,.  <br /></td></tr>
+<tr class="separator:a7893858c53fc75e89958167ab734f416"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table>
 <a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
 <div class="textblock"><p>Single ADC channel (pin + metadata). </p>
-</div><h2 class="groupheader">Member Function Documentation</h2>
+</div><h2 class="groupheader">Constructor &amp; Destructor Documentation</h2>
+<a id="a4093b63e4b00b6bcdb9439aa8a543698" name="a4093b63e4b00b6bcdb9439aa8a543698"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a4093b63e4b00b6bcdb9439aa8a543698">&#9670;&#160;</a></span>Channel()</h2>
+
+<div class="memitem">
+<div class="memproto">
+<table class="mlabels">
+  <tr>
+  <td class="mlabels-left">
+      <table class="memname">
+        <tr>
+          <td class="memname">adc::Channel::Channel </td>
+          <td>(</td>
+          <td class="paramtype">uint8_t&#160;</td>
+          <td class="paramname"><em>_pin</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">int8_t&#160;</td>
+          <td class="paramname"><em>_power</em>, </td>
+        </tr>
+        <tr>
+          <td class="paramkey"></td>
+          <td></td>
+          <td class="paramtype">bool&#160;</td>
+          <td class="paramname"><em>_active_high</em>&#160;</td>
+        </tr>
+        <tr>
+          <td></td>
+          <td>)</td>
+          <td></td><td></td>
+        </tr>
+      </table>
+  </td>
+  <td class="mlabels-right">
+<span class="mlabels"><span class="mlabel">inline</span><span class="mlabel">explicit</span></span>  </td>
+  </tr>
+</table>
+</div><div class="memdoc">
+
+<p><a class="el" href="structadc_1_1Channel.html" title="Single ADC channel (pin + metadata).">Channel</a> constructor. </p>
+<p>Assumes no power is required unless otherwise noted.</p>
+<dl class="params"><dt>Parameters</dt><dd>
+  <table class="params">
+    <tr><td class="paramname">_pin</td><td>Analog pin number for channel. </td></tr>
+    <tr><td class="paramname">_power</td><td>Pin number for power. </td></tr>
+    <tr><td class="paramname">_active_high</td><td>Flag indicating if channel is active low or high. </td></tr>
+  </table>
+  </dd>
+</dl>
+
+</div>
+</div>
+<h2 class="groupheader">Member Function Documentation</h2>
 <a id="a67ff4f9133d0ea10b803c220c3c4e8a1" name="a67ff4f9133d0ea10b803c220c3c4e8a1"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a67ff4f9133d0ea10b803c220c3c4e8a1">&#9670;&#160;</a></span>mux_mask()</h2>
 
@@ -149,6 +209,22 @@ Data Fields</h2></td></tr>
 </div>
 </div>
 <h2 class="groupheader">Field Documentation</h2>
+<a id="a7893858c53fc75e89958167ab734f416" name="a7893858c53fc75e89958167ab734f416"></a>
+<h2 class="memtitle"><span class="permalink"><a href="#a7893858c53fc75e89958167ab734f416">&#9670;&#160;</a></span>active_high</h2>
+
+<div class="memitem">
+<div class="memproto">
+      <table class="memname">
+        <tr>
+          <td class="memname">bool adc::Channel::active_high</td>
+        </tr>
+      </table>
+</div><div class="memdoc">
+
+<p>Boolean for if the power is active high or active high,. </p>
+
+</div>
+</div>
 <a id="a14484509c39bdc2b608c6b54079176ef" name="a14484509c39bdc2b608c6b54079176ef"></a>
 <h2 class="memtitle"><span class="permalink"><a href="#a14484509c39bdc2b608c6b54079176ef">&#9670;&#160;</a></span>pin</h2>
 

@@ -5,7 +5,7 @@
 <meta http-equiv="X-UA-Compatible" content="IE=11"/>
 <meta name="generator" content="Doxygen 1.9.8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Chrispy: Main Page</title>
+<title>Chrispy: Chrispy</title>
 <link href="tabs.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="jquery.js"></script>
 <script type="text/javascript" src="dynsections.js"></script>
@@ -89,10 +89,57 @@ $(document).ready(function(){initNavTree('index.html',''); initResizable(); });
 </div>
 </div>
 
-<div class="header">
-  <div class="headertitle"><div class="title">Chrispy Documentation</div></div>
+<div><div class="header">
+  <div class="headertitle"><div class="title">Chrispy </div></div>
 </div><!--header-->
 <div class="contents">
+<div class="textblock"><p><a class="anchor" id="md__2home_2runner_2work_2chrispy_2chrispy_2README"></a> High-performance multichannel ADC sampling and audio recording. Developed as part of the CIROH research project at the University of Vermont.</p>
+<p>Author: Jordan Bourdeau</p>
+<p>API Documentation: <a href="https://jbourds.github.io/chrispy">jbourds.github.io/chrispy</a></p>
+<p>GitHub Repository: <a href="https://github.com/jbourds/chrispy">github.com/jbourds/chrispy</a></p>
+<h1><a class="anchor" id="autotoc_md1"></a>
+Repository Layout</h1>
+<ul>
+<li><code>examples</code>: Example programs showcasing various uses of library APIs.</li>
+<li><code>src</code>: Source code containing all .cpp and .h files.</li>
+<li><code>helpers</code>: Helper programs/scripts.</li>
+<li><code>doc</code>: Doxygen setup.</li>
+<li><code>library.json</code>: Repo metadata for PlatformIO.</li>
+<li><code>library.properties</code>: Repo metadata for Arduino.</li>
+</ul>
+<h1><a class="anchor" id="autotoc_md2"></a>
+Example Programs</h1>
+<p>Example programs were written and tested for the <a href="https://ieeexplore.ieee.org/document/11175467">AURA board</a> developed as part of the research project this work was a part of. The AURA board has an ATMEGA2560 processor and shares many of the pin numbers as the Arduino <a href="https://www.envirodiy.org/mayfly/">Mayfly Data Logger</a>.</p>
+<h1><a class="anchor" id="autotoc_md3"></a>
+Theory of Operation</h1>
+<h2><a class="anchor" id="autotoc_md4"></a>
+Selecting Input Channels</h2>
+<p>A list of input channels is specified with an array of <a href="https://jbourds.github.io/chrispy/structadc_1_1Channel.html"><code>Channel</code></a> instances. These are simple data objects which just contain information about the pin and (optionally) power pin required along with information on whether it is active low or active high. This information is uses by the <code>adc</code> module to ensure all input channels are configured as inputs and are being powered prior to beginning recording. The <code>pin</code> field of the <code>Channel</code> struct also maps to a 3-bit binary string which is used in the ADC's ADMUX register to select which channel is active.</p>
+<h2><a class="anchor" id="autotoc_md5"></a>
+Configuring the ADC</h2>
+<p>The ADC controls are implemented as freestanding functions within the <code>adc</code> module. An object-oriented approach was not opted for here, as the ADC is rightfully a singleton object (there is only a single hardware ADC) and should not be able to be moved around.</p>
+<p>Prior to use, the ADC must be initialized with the <a href="https://jbourds.github.io/chrispy/namespaceadc.html#ad1e0fe0282574d1733c87c25737966a5"><code>init</code></a> function. The <code>adc</code> module requires initialization before being able to be used for anything. This can be done as many times as desired to change parameters, but must be done when the ADC is inactive. Initialization requires the set of channels to be recorded from, as well as a buffer and buffer size to use. The buffer size must be a power of 2. Recommendations are to use a factor of 1024. This ie because whatever buffer is supplied gets subdivided into 2 buffers when used by the ISR. <code>SdFat</code> can transmit 512 bytes at a time and so passing in memory which is an increment of 1024 ensures the size of each individual buffer coincides with the optimal size for <code>SdFat</code>. This is crucial in high performance sampling applications such as audio recording which can sample at 40kHz and above and requires optimized performance when writing incoming data out to the SD card.</p>
+<p>One the <code>adc</code> module has been initialized, the ADC can be started. The <a href="https://jbourds.github.io/chrispy/namespaceadc.html#ae4487b3f66a694f51d662dbed5590052"><code>start</code></a> function requires parameters for the bit resolution to use, per-channel sample rate, the number of samples per channel before switching (must be a power of 2), and the number of milliseconds to wait as a warmup period after beginning the ADC before returning from the function. This step configures the following:</p>
+<ul>
+<li>Timings for sampling each channel at the desired clock rate (ADC prescaler, Timer1 compare/match values)</li>
+<li>Global ADC frame referenced by the ISR when ingesting samples.</li>
+<li>ADC registers to begin autotriggering interrupts</li>
+</ul>
+<h2><a class="anchor" id="autotoc_md6"></a>
+Multi-Channel Switching</h2>
+<p>This library supports alternating between channels every <code>n</code> samples, where <code>n</code> is some increment of 2. Note that this <em>does add noise</em> to the target signal. This is a result of residual noise from the previous channel not being fully dissipated within the ADC. Future work for this library will look for ways to cut down on this noise.</p>
+<p>The <code>adc</code> module supports multiple channels by further partitioning each of its double buffers into <code>nchannels</code> sub-buffers. This way, wheneover a new channel is swapped to it can simply update the write-head to the new channel buffer. This design was preferred over writing samples interleaved between samples because it allows for large buffers of channel data to be written out at a time after being retrieved with <code>swap_buffer</code>. This function takes a <code>size_t</code> by reference and will put the channel index a buffer is from whenever a new buffer is received. This design is preferred, because it requires less work to be done by the caller when sorting samples. If samples were interleaved, it would require iterating over every sample in the buffer to place each sample with its corresponding channel.</p>
+<h2><a class="anchor" id="autotoc_md7"></a>
+Ingesting ADC Data</h2>
+<p>Once the <code>adc</code> module has been started, the interrupt service routine within the module will be triggered every time a sample becomes ready. Internally, the ISR is writing to a double buffer split from the buffer earlier passed in by the user to <code>init</code>. Once one buffer fills up, the ISR will jump to the next. At this point, the earlier buffer becomes available to be written out. The intended workflow is for the application to call the <a href="https://jbourds.github.io/chrispy/namespaceadc.html#ad3820624ae8adaa92589f2b847755b30"><code>swap_buffer</code></a> function in a loop, taking the desired action whenever a buffer becomes available before calling the function again with the buffer it just wrote out. This function essentially "lends" a full ADC buffer to the caller and expects to receive it back through the same function. Once the function is called again with a full buffer, it internally marks the buffer as free to write to again.</p>
+<p>The <code>single_channel_adc</code> and <code>multi_channel_adc</code> examples demonstrate how to ingest high amounts of data from the ADC with audio recording as an example.</p>
+<h2><a class="anchor" id="autotoc_md8"></a>
+Recording</h2>
+<p>The primary goal of this library was to enable high-performance recording from multiple audio channels concurrently. While other interfaces (<code><a class="el" href="Adc_8h.html">Adc.h</a></code>, <code><a class="el" href="Timer_8h.html">Timer.h</a></code>) were kept fairly generic, the <code>recording</code> module provides a simple interface for rapidly ingesting audio data to files on the SD card.</p>
+<p>Similar to the <code>adc</code> module, an initialization function must be called prior to recording. The <a href="https://jbourds.github.io/chrispy/namespacerecording.html#a127b7f12a32c210317b0cb5696eeb2d7"><code>init</code></a> function configures the set of channels to be used, as well as a pointer to the <code>SD</code> object for accessing the board's micro SD card.</p>
+<p>The only other function is <a href="https://jbourds.github.io/chrispy/namespacerecording.html#ac3a362134397d1b0fe8c9ef1568138f7"><code>record</code></a> which takes the list of filenames for each channel and all the necessary parameters for configuring the ADC. This function configures the ADC, creates all the files for recording, ingests data from the ADC into each file, truncates files down to a common size, and then closes all files and deactivates the ADC.</p>
+<p>The <code>single_channel_recording</code> and <code>multi_channel_recording</code> examples demonstrate how to use this API for recording to SD card files. </p>
+</div></div><!-- PageDoc -->
 </div><!-- contents -->
 </div><!-- doc-content -->
 <!-- start footer part -->
