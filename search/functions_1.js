@@ -1,7 +1,4 @@
 var searchData=
 [
-  ['channel_0',['Channel',['../structadc_1_1Channel.html#a4093b63e4b00b6bcdb9439aa8a543698',1,'adc::Channel']]],
-  ['close_5fall_1',['close_all',['../SdFunctions_8cpp.html#a62980daf683e6c7856c9e9bb36488cf5',1,'close_all(SdFile files[], size_t nfiles):&#160;SdFunctions.cpp'],['../SdFunctions_8h.html#a62980daf683e6c7856c9e9bb36488cf5',1,'close_all(SdFile files[], size_t nfiles):&#160;SdFunctions.cpp']]],
-  ['collected_2',['collected',['../namespaceadc.html#a7b6d33bd624703a61a80a5eca27ad690',1,'adc']]],
-  ['compute_3',['compute',['../structTimerConfig.html#ae84b2fee41e69dfbe4363fb8e5cc9f38',1,'TimerConfig']]]
+  ['bytes_5fper_5fsample_0',['bytes_per_sample',['../namespaceadc.html#ad119695636fb45707432d3dfe9d6eff6',1,'adc']]]
 ];

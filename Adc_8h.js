@@ -15,6 +15,7 @@ var Adc_8h =
       [ "Eight", "Adc_8h.html#a68a3ae517d073a34ace44121e6e776f3abaca0ca6729684fd54206793ae4b5bd5", null ],
       [ "Ten", "Adc_8h.html#a68a3ae517d073a34ace44121e6e776f3aa185c3c138dca5ef46afc33288a67d1f", null ]
     ] ],
+    [ "bytes_per_sample", "Adc_8h.html#ad119695636fb45707432d3dfe9d6eff6", null ],
     [ "collected", "Adc_8h.html#a7b6d33bd624703a61a80a5eca27ad690", null ],
     [ "drain_buffer", "Adc_8h.html#a2f8a7307ecfe3233a079d96598d40c56", null ],
     [ "init", "Adc_8h.html#ad1e0fe0282574d1733c87c25737966a5", null ],

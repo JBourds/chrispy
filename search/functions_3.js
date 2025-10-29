@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['error_5fstr_0',['error_str',['../Timer_8cpp.html#a7ec74db951bb26f9e39436a71111311a',1,'error_str(TimerRc rc):&#160;Timer.cpp'],['../Timer_8h.html#a7ec74db951bb26f9e39436a71111311a',1,'error_str(TimerRc rc):&#160;Timer.cpp']]]
+  ['deactivate_5ft1_0',['deactivate_t1',['../Timer_8cpp.html#a9a7cf9eb5ac1a5253b85e44e2fcff5f4',1,'deactivate_t1():&#160;Timer.cpp'],['../Timer_8h.html#a9a7cf9eb5ac1a5253b85e44e2fcff5f4',1,'deactivate_t1():&#160;Timer.cpp']]],
+  ['drain_5fbuffer_1',['drain_buffer',['../namespaceadc.html#a2f8a7307ecfe3233a079d96598d40c56',1,'adc']]]
 ];

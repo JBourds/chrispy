@@ -17,6 +17,7 @@ var Adc_8cpp =
     [ "SOURCE_MASK", "Adc_8cpp.html#a9424c14db7dfce96c07f7b3de63560ae", null ],
     [ "TEN_BIT_BIAS", "Adc_8cpp.html#a1267a24b5fdb08fd2d64d900ca0aaf49", null ],
     [ "TEN_TO_SIXTEEN_BIT", "Adc_8cpp.html#ad572e31bd427ee6ba6bc27f45023ce53", null ],
+    [ "bytes_per_sample", "Adc_8cpp.html#ad119695636fb45707432d3dfe9d6eff6", null ],
     [ "collected", "Adc_8cpp.html#a7b6d33bd624703a61a80a5eca27ad690", null ],
     [ "drain_buffer", "Adc_8cpp.html#a2f8a7307ecfe3233a079d96598d40c56", null ],
     [ "init", "Adc_8cpp.html#ad1e0fe0282574d1733c87c25737966a5", null ],

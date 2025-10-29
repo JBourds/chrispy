@@ -1,5 +1,4 @@
 var searchData=
 [
-  ['off_0',['off',['../namespaceadc.html#ad6259bd97cb6019b6c6702ee7bcb962c',1,'adc']]],
-  ['on_1',['on',['../namespaceadc.html#ac10397c71fe50ea416050539bef5629b',1,'adc']]]
+  ['mux_5fmask_0',['mux_mask',['../structadc_1_1Channel.html#a67ff4f9133d0ea10b803c220c3c4e8a1',1,'adc::Channel']]]
 ];

@@ -1,5 +1,7 @@
 var searchData=
 [
-  ['timerconfig_0',['TimerConfig',['../structTimerConfig.html#a9c21737a84d09d3a1af396a030a80743',1,'TimerConfig']]],
-  ['truncate_5fto_5fsmallest_1',['truncate_to_smallest',['../SdFunctions_8cpp.html#a27f4ee2713353fedebd8988048969975',1,'truncate_to_smallest(SdFile files[], size_t nfiles):&#160;SdFunctions.cpp'],['../SdFunctions_8h.html#a27f4ee2713353fedebd8988048969975',1,'truncate_to_smallest(SdFile files[], size_t nfiles):&#160;SdFunctions.cpp']]]
+  ['sleep_0',['sleep',['../namespaceadc.html#a059331def25b50a2555a7f801911dc6a',1,'adc']]],
+  ['start_1',['start',['../namespaceadc.html#ae4487b3f66a694f51d662dbed5590052',1,'adc']]],
+  ['stop_2',['stop',['../namespaceadc.html#a9db897388294ea3db76155f9d42b72f6',1,'adc']]],
+  ['swap_5fbuffer_3',['swap_buffer',['../namespaceadc.html#ad3820624ae8adaa92589f2b847755b30',1,'adc']]]
 ];
