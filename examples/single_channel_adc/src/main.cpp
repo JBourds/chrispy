@@ -114,7 +114,7 @@ void loop() {
     uint32_t ncollected = adc::stop();
     while (adc::drain_buffer(&tmp_buf, sz, ch_index) == 0) {
         Serial.print("Draining ");
-        Serial.print(sz);
+        Serial.print(sz / adc::bytes_per_sample(RESOLUTION));
         Serial.println(" more samples");
         if (tmp_buf == nullptr) {
             continue;
