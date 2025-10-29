@@ -1,3 +1,4 @@
 .pio/
 doc/html
 *.csv
+*.out
