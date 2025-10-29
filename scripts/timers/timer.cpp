@@ -136,7 +136,7 @@ static clk_t compute_delta(struct TimerConfig* cfg) {
 
 static void compute_error(struct TimerConfig* cfg) {
     clk_t delta = compute_delta(cfg);
-    cfg->error = delta / static_cast<double>(cfg->desired);
+    cfg->error = delta / static_cast<double>(cfg->actual);
 }
 
 static enum TimerRc validate_preference(struct TimerConfig* cfg) {

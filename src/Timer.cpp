@@ -156,7 +156,8 @@ static enum TimerRc get_compare_value(struct TimerConfig* cfg,
     if (cfg->desired == 0 || cfg->prescaler == 0) {
         return TimerRc::ZeroDiv;
     }
-    double ideal_compare = cfg->src / (double)(cfg->desired * cfg->prescaler);
+    double ideal_compare =
+        cfg->src / static_cast<double>((cfg->desired * cfg->prescaler));
     clk_t actual_compare = max(round(ideal_compare), 1);
     actual_compare = min(actual_compare, max_compare);
     cfg->compare = actual_compare;
@@ -208,7 +209,7 @@ static clk_t compute_delta(struct TimerConfig* cfg) {
 
 static void compute_error(struct TimerConfig* cfg) {
     clk_t delta = compute_delta(cfg);
-    cfg->error = delta / (double)cfg->desired;
+    cfg->error = delta / static_cast<double>(cfg->actual);
 }
 
 static enum TimerRc validate_preference(struct TimerConfig* cfg) {
