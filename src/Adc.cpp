@@ -352,6 +352,7 @@ static void configure_channels(size_t nchannels, Channel* channels) {
     for (size_t i = 0; i < nchannels; ++i) {
         if (channels[i].power >= 0) {
             pinMode(channels[i].pin, INPUT);
+            pinMode(channels[i].power, OUTPUT);
             digitalWrite(channels[i].power,
                          channels[i].active_high ? HIGH : LOW);
         }
