@@ -1,6 +1,6 @@
 {
     "name": "chrispy",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Library for high performance multi-channel concurrent ADC sampling/audio recording on ATMega 2560.",
     "keywords": "sound, audio, music, sd, card, playback",
     "description": "PCM/WAV playback direct from SD card",
