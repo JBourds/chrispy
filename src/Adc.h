@@ -15,6 +15,8 @@ enum struct BitResolution : uint8_t {
     Ten = 10,
 };
 
+size_t bytes_per_sample(BitResolution res);
+
 /**
  * Number of channels supported by the ADC (0 - 15).
  */

@@ -40,7 +40,6 @@ static bool increment_channel_buffer_index();
 
 // Internal ADC control functions
 static uint8_t prescaler_mask(pre_t val);
-static size_t bytes_per_sample(BitResolution res);
 static void enable_interrupts();
 static void disable_interrupts();
 static void enable_autotrigger();
@@ -513,7 +512,7 @@ static uint8_t prescaler_mask(pre_t val) {
     }
 }
 
-static size_t bytes_per_sample(BitResolution res) {
+size_t bytes_per_sample(BitResolution res) {
     switch (res) {
         case BitResolution::Eight:
             return 1;
