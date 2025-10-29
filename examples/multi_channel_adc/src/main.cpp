@@ -73,9 +73,6 @@ void setup() {
     }
 
     for (size_t i = 0; i < NCHANNELS; ++i) {
-        pinMode(CHANNELS[i].power, OUTPUT);
-        digitalWrite(CHANNELS[i].power, LOW);
-        pinMode(CHANNELS[i].pin, INPUT);
         if (!FILES[i].open(FILENAMES[i], O_TRUNC | O_WRITE | O_CREAT)) {
             Serial.print("Error opening file ");
             Serial.println(FILENAMES[i]);

@@ -57,11 +57,6 @@ void setup() {
         done();
     }
 
-    for (size_t i = 0; i < NCHANNELS; ++i) {
-        pinMode(CHANNELS[i].pin, INPUT);
-        pinMode(CHANNELS[i].power, OUTPUT);
-        digitalWrite(CHANNELS[i].power, LOW);
-    }
     if (!recording::init(NCHANNELS, CHANNELS, &SD)) {
         Serial.println("Recording init failed!");
         done();
