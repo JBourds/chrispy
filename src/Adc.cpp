@@ -40,6 +40,7 @@ static bool increment_channel_buffer_index();
 
 // Internal ADC control functions
 static uint8_t prescaler_mask(pre_t val);
+static size_t bytes_per_sample(BitResolution res);
 static void enable_interrupts();
 static void disable_interrupts();
 static void enable_autotrigger();
@@ -193,8 +194,7 @@ int8_t drain_buffer(uint8_t** buf, size_t& sz, size_t& ch_index) {
     }
 
     // Only drain samples if we have any full windows to check
-    size_t bytes_per_sample = FRAME.res == BitResolution::Eight ? 1 : 2;
-    size_t window_sz_bytes = FRAME.ch_window_sz * bytes_per_sample;
+    size_t window_sz_bytes = FRAME.ch_window_sz * bytes_per_sample(FRAME.res);
     if (FRAME.sample_index < window_sz_bytes) {
         return -3;
     }
@@ -429,8 +429,8 @@ static int8_t init_frame(BitResolution res, size_t ch_window_sz) {
     }
 
     const size_t nbuffers = 2;
-    size_t bytes_per_sample = res == BitResolution::Eight ? 1 : 2;
-    size_t samples_per_buf = INSTANCE.sz / (nbuffers * bytes_per_sample);
+    size_t bps = bytes_per_sample(res);
+    size_t samples_per_buf = INSTANCE.sz / (nbuffers * bps);
     size_t samples_per_ch_buf = samples_per_buf / INSTANCE.nchannels;
     // Shrink channel buffers if needed to get increment of window size
     size_t window_increment_delta = samples_per_ch_buf & ch_window_mask;
@@ -445,13 +445,13 @@ static int8_t init_frame(BitResolution res, size_t ch_window_sz) {
 
     // Slice up the buffer into a double buffer
     FRAME.buf1 = INSTANCE.buf;
-    FRAME.buf2 = INSTANCE.buf + samples_per_buf * bytes_per_sample;
+    FRAME.buf2 = INSTANCE.buf + samples_per_buf * bps;
 
     FRAME.max_ch_index = INSTANCE.nchannels - 1;
     FRAME.ch_window_sz = ch_window_sz;
     FRAME.ch_window_mask = ch_window_mask;
     FRAME.ch_buffer = FRAME.buf1;
-    FRAME.ch_buf_sz = samples_per_ch_buf * bytes_per_sample;
+    FRAME.ch_buf_sz = samples_per_ch_buf * bps;
 
     FRAME.using_buf_1 = true;
     FRAME.active = true;
@@ -508,6 +508,17 @@ static uint8_t prescaler_mask(pre_t val) {
             return DIV_64;
         case 128:
             return DIV_128;
+        default:
+            return 0;
+    }
+}
+
+static size_t bytes_per_sample(BitResolution res) {
+    switch (res) {
+        case BitResolution::Eight:
+            return 1;
+        case BitResolution::Ten:
+            return 2;
         default:
             return 0;
     }
