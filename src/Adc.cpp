@@ -34,7 +34,7 @@ namespace adc {
 const size_t MAX_CHANNEL_COUNT = 16;
 
 // ISR helper functions
-static int8_t init_frame(BitResolution res, size_t ch_window_sz);
+static int8_t init_frame(BitResolution res, size_t ch_window_samples);
 static inline bool activate_adc_channel(Channel& ch);
 static bool increment_channel_buffer_index();
 
@@ -139,6 +139,7 @@ ISR(ADC_vect) {
     if (FRAME.res == BitResolution::Eight) {
         FRAME.ch_buffer[FRAME.sample_index++] = ADCH;
     } else {
+        // 10-bit is assumed here
         uint8_t low = ADCL;
         uint8_t high = ADCH;
         uint16_t new_sample = TEN_TO_SIXTEEN_BIT((high << CHAR_BIT) | low);
@@ -414,21 +415,23 @@ int8_t Channel::mux_mask() {
     }
 }
 
-static int8_t init_frame(BitResolution res, size_t ch_window_sz) {
-    size_t ch_window_mask = ch_window_sz - 1;
+static int8_t init_frame(BitResolution res, size_t ch_window_samples) {
     if (INSTANCE.nchannels < 1) {
         return -1;
-    } else if (ch_window_sz == 0) {
+    } else if (ch_window_samples == 0) {
         return -2;
-    } else if (ch_window_sz & ch_window_mask) {
-        // Channel window size needs to be a power of 2
-        return -3;
     } else if (INSTANCE.sz < MIN_BUF_SZ_PER_CHANNEL * INSTANCE.nchannels) {
+        return -3;
+    }
+    const size_t nbuffers = 2;
+    size_t bps = bytes_per_sample(res);
+    size_t ch_window_sz = ch_window_samples * bps;
+    size_t ch_window_mask = ch_window_samples - 1;
+    if (ch_window_samples & ch_window_mask) {
+        // Channel window size needs to be a power of 2
         return -4;
     }
 
-    const size_t nbuffers = 2;
-    size_t bps = bytes_per_sample(res);
     size_t samples_per_buf = INSTANCE.sz / (nbuffers * bps);
     size_t samples_per_ch_buf = samples_per_buf / INSTANCE.nchannels;
     // Shrink channel buffers if needed to get increment of window size
