@@ -55,8 +55,10 @@ int64_t record(const char *filenames[], BitResolution res, uint32_t sample_rate,
     if (adc::start(res, sample_rate) != 0) {
         return -5;
     }
-    uint32_t deadline = millis() + duration_ms;
-    while (millis() <= deadline) {
+    uint32_t required_samples = (static_cast<uint64_t>(duration_ms) *
+                                 sample_rate * INSTANCE.nchannels) /
+                                1000ull;
+    while (adc::collected() < required_samples) {
         if (adc::swap_buffer(&tmp_buf, tmp_sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
                 continue;
