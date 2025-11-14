@@ -119,6 +119,27 @@ static struct Adc {
     bool initialized = false;
 } INSTANCE;
 
+static struct State {
+    uint8_t prr0;
+    uint8_t adcsra;
+    uint8_t adcsrb;
+    uint8_t admux;
+} STATE;
+
+static void save_state() {
+    STATE.prr0 = PRR0;
+    STATE.adcsra = ADCSRA;
+    STATE.adcsrb = ADCSRB;
+    STATE.admux = ADMUX;
+}
+
+static void restore_state() {
+    PRR0 = STATE.prr0;
+    ADCSRA = STATE.adcsra;
+    ADCSRB = STATE.adcsrb;
+    ADMUX = STATE.admux;
+}
+
 /**
  * Interrupt service routine responsible for reading samples from the ADC.
  */
@@ -299,6 +320,7 @@ int8_t start(BitResolution res, uint32_t sample_rate, size_t ch_window_sz,
     }
     INSTANCE.res = res;
 
+    save_state();
     on();
     configure_channels(INSTANCE.nchannels, INSTANCE.channels);
     set_source(AutotriggerSource::TimCnt1CmpB);
@@ -330,6 +352,7 @@ uint32_t stop() {
     disable_interrupts();
     disable_autotrigger();
     deactivate_t1();
+    restore_state();
     uint32_t collected = FRAME.collected;
     FRAME.active = false;
     return collected;
