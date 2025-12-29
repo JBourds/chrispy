@@ -29,7 +29,7 @@ namespace adc {
 
 #define MIN_BUF_SZ_PER_CHANNEL 512
 
-#define ADC_CYCLES_PER_SAMPLE 13.5
+#define ADC_CYCLES_PER_SAMPLE 13
 
 const size_t MAX_CHANNEL_COUNT = 16;
 
