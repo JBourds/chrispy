@@ -35,7 +35,9 @@ static struct Timer1 {
     uint16_t ocr1b;
     uint16_t ocr1c;
     uint16_t icr1;
+    uint16_t tcnt1;
     uint8_t timsk1;
+    uint8_t tifr1;
 
     void activate(TimerConfig& cfg) {
         if (is_active) {
@@ -51,6 +53,8 @@ static struct Timer1 {
         ocr1c = OCR1C;
         icr1 = ICR1;
         timsk1 = TIMSK1;
+        tcnt1 = TCNT1;
+        tifr1 = TIFR1;
 
         TCCR1A = 0;
         TCCR1B = prescaler_mask(cfg.prescaler) | CTC_MODE;
@@ -77,7 +81,10 @@ static struct Timer1 {
         OCR1C = ocr1c;
         ICR1 = icr1;
         TIMSK1 = timsk1;
+        TCNT1 = tcnt1;
+        TIFR1 = tifr1;
         sei();
+        is_active = false;
     }
 } TIMER1;
 

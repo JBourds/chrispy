@@ -124,6 +124,8 @@ static struct State {
     uint8_t adcsra;
     uint8_t adcsrb;
     uint8_t admux;
+    uint16_t ocr1a;
+    uint16_t ocr1b;
 } STATE;
 
 static void save_state() {
@@ -131,6 +133,8 @@ static void save_state() {
     STATE.adcsra = ADCSRA;
     STATE.adcsrb = ADCSRB;
     STATE.admux = ADMUX;
+    STATE.ocr1a = OCR1A;
+    STATE.ocr1b = OCR1B;
 }
 
 static void restore_state() {
@@ -138,6 +142,8 @@ static void restore_state() {
     ADCSRA = STATE.adcsra;
     ADCSRB = STATE.adcsrb;
     ADMUX = STATE.admux;
+    OCR1A = STATE.ocr1a;
+    OCR1B = STATE.ocr1b;
 }
 
 /**
