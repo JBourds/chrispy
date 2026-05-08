@@ -354,14 +354,14 @@ int8_t start(BitResolution res, uint32_t sample_rate, size_t ch_window_sz,
 uint32_t collected() { return FRAME.collected; }
 
 uint32_t stop() {
-    off();
-    disable_interrupts();
-    disable_autotrigger();
+    cli();
+    FRAME.active = false;
+    ADCSRA &= ~((1 << ADEN) | (1 << ADIE) | (1 << ADATE));
+    ADCSRA |= (1 << ADIF);  // clear any pending ADC interrupt flag (write-1)
+    sei();
     deactivate_t1();
     restore_state();
-    uint32_t collected = FRAME.collected;
-    FRAME.active = false;
-    return collected;
+    return FRAME.collected;
 }
 
 static void enable_interrupts() { ADCSRA |= (1 << ADIE); }
@@ -471,24 +471,29 @@ static int8_t init_frame(BitResolution res, size_t ch_window_samples) {
     }
     samples_per_ch_buf -= window_increment_delta;
 
+    // Block ADC interrupts during FRAME setup. Prevents an ISR from firing
+    // mid-memset or mid-field-assignment with partially-zeroed FRAME state
+    // (e.g., ch_buffer with low byte 0x00 + high byte stale = wild pointer
+    // dereference; ISR audio sample lands in random RAM). Also clear ADIF
+    // so a stale interrupt flag (set by analogRead's leftover state from
+    // sample()/fill_packet()) can't fire on enable_interrupts() later.
+    cli();
+    ADCSRA &= ~(1 << ADIE);
+    ADCSRA |= (1 << ADIF);
     memset(&FRAME, 0, sizeof(FRAME));
 
     FRAME.res = res;
-
-    // Slice up the buffer into a double buffer
     FRAME.buf1 = INSTANCE.buf;
     FRAME.buf2 = INSTANCE.buf + samples_per_buf * bps;
-
     FRAME.max_ch_index = INSTANCE.nchannels - 1;
     FRAME.ch_window_sz = ch_window_sz;
     FRAME.ch_window_mask = ch_window_mask;
     FRAME.ch_buffer = FRAME.buf1;
     FRAME.ch_buf_sz = samples_per_ch_buf * bps;
-
     FRAME.using_buf_1 = true;
     FRAME.active = true;
-
     CH_BUFFER_INDEX = 0;
+    sei();
 
     return 0;
 }
