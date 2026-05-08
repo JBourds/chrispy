@@ -4,5 +4,5 @@ var searchData=
   ['bits_5fper_5fsample_1',['bits_per_sample',['../structWavHeader.html#a085317405041bce1658c5948f1b1e347',1,'WavHeader']]],
   ['block_5falign_2',['block_align',['../structWavHeader.html#a55417acd8c1774caee8928ad8fe86c07',1,'WavHeader']]],
   ['byte_5frate_3',['byte_rate',['../structWavHeader.html#a9e6e51114d572f6fe71cd00cd101343d',1,'WavHeader']]],
-  ['bytes_5fper_5fsample_4',['bytes_per_sample',['../namespaceadc.html#ad119695636fb45707432d3dfe9d6eff6',1,'adc']]]
+  ['bytes_5fper_5fsample_4',['bytes_per_sample',['../Adc_8cpp.html#afc28405c771a8835cdce806d9c0dad80',1,'bytes_per_sample():&#160;Adc.cpp'],['../namespaceadc.html#ad119695636fb45707432d3dfe9d6eff6',1,'adc::bytes_per_sample()']]]
 ];
