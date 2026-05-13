@@ -27,7 +27,7 @@ namespace adc {
 #define DIV_2 0b001
 #define DIV_2_2 0b000
 
-#define MIN_BUF_SZ_PER_CHANNEL 512
+#define MIN_BUF_SZ_PER_CHANNEL 256
 
 #define ADC_CYCLES_PER_SAMPLE 13
 
