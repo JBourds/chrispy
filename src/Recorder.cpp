@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <SdFat.h>
+#include <avr/wdt.h>
 
 #include "SdFunctions.cpp"
 #include "WavHeader.h"
@@ -59,6 +60,7 @@ int64_t record(const char *filenames[], BitResolution res, uint32_t sample_rate,
                                  sample_rate * INSTANCE.nchannels) /
                                 1000ull;
     while (adc::collected() < required_samples) {
+        wdt_reset();
         if (adc::swap_buffer(&tmp_buf, tmp_sz, ch_index) == 0) {
             if (tmp_buf == nullptr) {
                 continue;
